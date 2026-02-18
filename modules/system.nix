@@ -6,10 +6,13 @@
 # - Bootloader
 # - Home Manager integration for per-user config
 # - Imports for security hardening and OpenClaw service
-{ config, pkgs, lib, nix-openclaw, ... }:
+{ config, pkgs, lib, modulesPath, nix-openclaw, ... }:
 
 {
   imports = [
+    # QEMU/KVM guest profile — loads virtio drivers (network, disk, GPU, etc.)
+    # for both x86_64 and aarch64 Hetzner Cloud VMs
+    (modulesPath + "/profiles/qemu-guest.nix")
     ./security.nix
     ./openclaw.nix
   ];
@@ -29,11 +32,17 @@
     efiInstallAsRemovable = true;
   };
 
-  # ── Serial console ───────────────────────────────────────────────
-  # Enables output to both the virtual terminal (tty0) and Hetzner's
-  # web console (ttyS0 = serial port). Without this, the Hetzner console
-  # shows "Display output is not enabled".
-  boot.kernelParams = [ "console=tty0" "console=ttyS0,115200n8" ];
+  # ── QEMU guest agent ─────────────────────────────────────────────
+  # Lets the hypervisor gracefully shutdown the VM, freeze filesystems
+  # for consistent snapshots, and sync the clock.
+  services.qemuGuest.enable = true;
+
+  # ── Console output ───────────────────────────────────────────────
+  # "console=tty" directs kernel output to the current virtual terminal.
+  # Works on both x86_64 (CX) and aarch64 (CAX) Hetzner Cloud VMs.
+  # The previous "console=ttyS0" was x86-only — ARM uses ttyAMA0 for
+  # serial, so a shared config should use the generic "tty" instead.
+  boot.kernelParams = [ "console=tty" ];
 
   # ── Memory management ─────────────────────────────────────────
   # zram provides compressed swap in RAM (~2:1 ratio), giving
