@@ -29,6 +29,12 @@
     efiInstallAsRemovable = true;
   };
 
+  # ── Serial console ───────────────────────────────────────────────
+  # Enables output to both the virtual terminal (tty0) and Hetzner's
+  # web console (ttyS0 = serial port). Without this, the Hetzner console
+  # shows "Display output is not enabled".
+  boot.kernelParams = [ "console=tty0" "console=ttyS0,115200n8" ];
+
   # ── Memory management ─────────────────────────────────────────
   # zram provides compressed swap in RAM (~2:1 ratio), giving
   # effectively more usable memory without disk I/O penalty
@@ -67,7 +73,7 @@
   # No separate personal user account; root handles all admin tasks.
 
   users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDAN0oQS5n8qu/OckmsD0A0Mgp/DO8w6sIdEDe4W6+jB dagadbm@gmail.com"
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBtAjf6zeT7Mg7w+zuC9yIN1xEvGZUPdKWwoo29EZEFx dagadbm@gmail.com"
   ];
 
   users.users.openclaw = {
@@ -75,7 +81,7 @@
     description = "OpenClaw service user";
     # No extraGroups — this user has no sudo access
     openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDAN0oQS5n8qu/OckmsD0A0Mgp/DO8w6sIdEDe4W6+jB dagadbm@gmail.com"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBtAjf6zeT7Mg7w+zuC9yIN1xEvGZUPdKWwoo29EZEFx dagadbm@gmail.com"
     ];
   };
 
