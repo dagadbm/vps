@@ -1,0 +1,10 @@
+# Secrets — API keys, tokens, credentials
+# These are manually copied to the server after deploy
+secrets/*
+!secrets/.gitkeep
+
+# Nix build output symlink
+result
+
+# direnv cache
+.direnv
