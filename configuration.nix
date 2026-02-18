@@ -20,7 +20,8 @@
   i18n.defaultLocale = "en_US.UTF-8";
 
   # ── Bootloader ───────────────────────────────────────────────────
-  # GRUB is required for Hetzner Cloud VMs (they use BIOS boot, not UEFI)
+  # GRUB is required for Hetzner Cloud VMs (BIOS boot is expected).
+  # This setup keeps EFI compatibility flags so the image remains portable.
   boot.loader.grub = {
     enable = true;
     device = "/dev/sda";
@@ -43,7 +44,8 @@
   }];
 
   # ── Nix build settings ────────────────────────────────────────
-  # Limit build parallelism to reduce peak memory usage
+  # Limit build parallelism to reduce peak memory usage on small VPSes.
+  # Tradeoff: rebuilds are slower, but less likely to OOM.
   nix.settings = {
     max-jobs = 1;
     cores = 1;
@@ -80,6 +82,7 @@
   # ── Home Manager ─────────────────────────────────────────────────
   # Configured as a NixOS module (not standalone) so it integrates
   # with the system activation and rebuilds.
+  # In practice: one `nixos-rebuild` updates both system + user config.
   home-manager = {
     useGlobalPkgs = true;   # Use the system's nixpkgs instead of a separate instance
     useUserPackages = true;  # Install user packages to /etc/profiles

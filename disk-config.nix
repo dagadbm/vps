@@ -7,6 +7,8 @@
 #
 # disko reads this config and partitions the disk automatically
 # during nixos-anywhere deployment.
+#
+# WARNING: applying this config repartitions `/dev/sda` and destroys existing data.
 {
   disko.devices = {
     disk = {

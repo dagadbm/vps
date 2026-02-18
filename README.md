@@ -90,3 +90,45 @@ scp -P 2222 secrets/gateway-token openclaw@46.225.171.96:~/secrets/
 - `bootstrap.sh` is destructive. Double-check target before running.
 - Keep `system.stateVersion` and Home Manager state version stable after deployment.
 - Keep secrets out of git (token file is manually managed).
+
+## Nix beginner quickstart
+
+This repo is the server's source code.
+
+- **Nix** is a package/build system focused on reproducibility.
+- **NixOS** is Linux configured as code.
+- You edit `.nix` files, then apply changes to make the server match.
+
+### Mental model for this repo
+
+- `flake.nix`: project entry point (what can be built/deployed)
+- `configuration.nix`: main system settings
+- `modules/security.nix`: SSH, firewall, fail2ban, auto updates
+- `modules/openclaw.nix`: OpenClaw options
+- `disk-config.nix`: disk partition layout for first install
+
+### Which command to use
+
+- First install only (wipes disk): `bootstrap.sh`
+- Normal ongoing changes: `update.sh`
+
+### Typical change flow
+
+1. Edit a `.nix` file.
+2. Run `./update.sh --host vps-personal` (or `--ip ...`).
+3. Verify server behavior.
+
+### Common edits
+
+- Hostname/timezone/locale: `configuration.nix`
+- Open/close ports: `modules/security.nix`
+- OpenClaw config: `modules/openclaw.nix`
+- Disk layout: `disk-config.nix` (destructive during bootstrap)
+
+### Syntax cheat sheet
+
+- `{ ... }` = object/map
+- `a.b = value;` = nested setting
+- `[ x y z ]` = list
+- `# ...` = comment
+- assignments end with `;`

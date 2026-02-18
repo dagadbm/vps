@@ -1,4 +1,8 @@
 {
+  # A flake is a pinned, reproducible entry point for a Nix project.
+  # Think of this file as:
+  # 1) Inputs: exact upstream dependencies
+  # 2) Outputs: what this repo can build (here: one NixOS system)
   description = "Reproducible NixOS VPS running OpenClaw on Hetzner Cloud";
 
   inputs = {
@@ -23,7 +27,12 @@
     };
   };
 
+  # `outputs = { ... }: { ... }` is a function:
+  # - left side: named inputs passed in
+  # - right side: attributes exported by this flake
   outputs = { self, nixpkgs, disko, home-manager, nix-openclaw, ... }: {
+    # This name is what you target in commands like:
+    # nixos-rebuild switch --flake .#vps-personal
     nixosConfigurations.vps-personal = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
 

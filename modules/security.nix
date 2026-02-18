@@ -57,6 +57,8 @@
   # ── Automatic upgrades ──────────────────────────────────────────
   # Pulls the latest NixOS channel and rebuilds daily.
   # This keeps security patches current without manual intervention.
+  # `allowReboot = true` means NixOS may reboot automatically if needed
+  # (for example, after some kernel/system updates).
   system.autoUpgrade = {
     enable = true;
     allowReboot = true;
