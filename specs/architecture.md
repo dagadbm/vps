@@ -2,46 +2,43 @@
 
 ## Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Your Mac  (no Nix installed)                                     │
-│                                                                 │
-│  dagadbm-vps/                                                   │
-│  ├── flake.nix                                                  │
-│  ├── bootstrap.sh ─┬─── install mode ──► Docker container ─┐    │
-│  ├── ...           │                     (nixos/nix image)  │    │
-│  └── secrets/      │                     runs nixos-anywhere│    │
-│      └── (API keys)│                                        │    │
-│                    └─── switch mode ──► rsync + SSH ────────┤    │
-│                         (no Docker needed)                  │    │
-└────────────────────────────────────────────────────────────┼────┘
-                                                             │
-                                                             ▼ SSH
-┌─────────────────────────────────────────────────────────────────┐
-│ Hetzner Cloud CX23 (4GB RAM, 40GB disk)                         │
-│                                                                 │
-│  Install: Ubuntu → nixos-anywhere → NixOS                       │
-│  Update:  rsync Nix files → nixos-rebuild switch                │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ NixOS                                                    │    │
-│  │                                                          │    │
-│  │  ┌──────────────────────┐  ┌──────────────────────────┐ │    │
-│  │  │ security.nix         │  │ openclaw.nix              │ │    │
-│  │  │                      │  │                           │ │    │
-│  │  │ - SSH on port 2222   │  │ - Home Manager module     │ │    │
-│  │  │ - Key-only auth      │  │ - official nix-openclaw   │ │    │
-│  │  │ - Firewall (2222,443)│  │ - systemd user service    │ │    │
-│  │  │ - Auto-updates       │  │ - openclaw-gateway        │ │    │
-│  │  └──────────────────────┘  └──────────────────────────┘ │    │
-│  │                                                          │    │
-│  │  Users:                                                  │    │
-│  │  - root (SSH key, no password)                           │    │
-│  │  - dagadbm (your user, SSH key, sudo)                    │    │
-│  │  - openclaw (service user, runs OpenClaw)                │    │
-│  │                                                          │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph Mac["Your Mac (no Nix installed)"]
+        Repo["dagadbm-vps/"]
+        Flake["flake.nix"]
+        Scripts["bootstrap.sh / update.sh"]
+        Secrets["secrets/ (API keys)"]
+
+        Scripts -->|install mode| Docker["Docker container<br/>(nixos/nix image)<br/>runs nixos-anywhere"]
+        Scripts -->|switch mode| Rsync["rsync + SSH<br/>(no Docker needed)"]
+    end
+
+    Docker -->|SSH| Server
+    Rsync -->|SSH| Server
+
+    subgraph Server["Hetzner Cloud CX23 (4GB RAM, 40GB disk)"]
+        Install["Install: Ubuntu → nixos-anywhere → NixOS"]
+        Update["Update: rsync Nix files → nixos-rebuild switch"]
+
+        subgraph NixOS
+            subgraph SecurityMod["security.nix"]
+                S1["SSH on port 2222"]
+                S2["Key-only auth"]
+                S3["Firewall (2222, 443)"]
+                S4["Auto-updates"]
+            end
+
+            subgraph OpenClawMod["openclaw.nix"]
+                O1["Home Manager module"]
+                O2["official nix-openclaw"]
+                O3["systemd user service"]
+                O4["openclaw-gateway"]
+            end
+
+            Users["Users:<br/>- root (SSH key, no password)<br/>- dagadbm (SSH key, sudo)<br/>- openclaw (service user)"]
+        end
+    end
 ```
 
 ## File Structure
@@ -87,11 +84,13 @@ Think of this as a `package.json` for the entire operating system.
 
 Tells disko how to partition the Hetzner server's disk:
 
-```
-/dev/sda (40GB)
-├── 1MB   - BIOS boot partition (required for GRUB on Hetzner)
-├── 512MB - EFI System Partition (/boot), formatted as FAT32
-└── rest  - Root partition (/), formatted as ext4
+```mermaid
+block-beta
+    columns 1
+    A["/dev/sda (40GB)"]
+    B["1MB — BIOS boot partition (required for GRUB on Hetzner)"]
+    C["512MB — EFI System Partition (/boot), formatted as FAT32"]
+    D["rest — Root partition (/), formatted as ext4"]
 ```
 
 GRUB is used instead of systemd-boot because Hetzner Cloud VMs require it.
@@ -160,49 +159,35 @@ These get manually copied to the server after deploy. Future improvement: use so
 
 ### First Install
 
-```
-./bootstrap.sh --ip 65.21.x.x --ssh-key ~/.ssh/id_ed25519 --system x86
-        │
-        ▼
-┌─ Docker on your Mac ───────────────────────────────┐
-│ docker run nixos/nix                                │
-│   ├── mounts SSH key + project directory            │
-│   └── nix run nixpkgs#nixos-anywhere                │
-│        --flake /work#vps-x86 or /work#vps-arm       │
-│        --target-host root@65.21.x.x                 │
-└──────────────────────┬──────────────────────────────┘
-                       │ SSH
-                       ▼
-┌─ Hetzner server (Ubuntu) ───────────────────────────┐
-│ 1. nixos-anywhere uploads kexec image                │
-│ 2. Server boots into temporary NixOS installer       │
-│ 3. disko reads modules/disk.nix, partitions /dev/sda │
-│ 4. NixOS config is built on the server               │
-│ 5. NixOS is installed to disk                        │
-│ 6. Server reboots                                    │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌─ Hetzner server (NixOS) ────────────────────────────┐
-│ - SSH on port 2222 (key-only)                        │
-│ - Firewall active                                    │
-│ - Auto-updates enabled                               │
-│ - OpenClaw gateway running                           │
-│ - Ready for API keys                                 │
-└──────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Mac as Your Mac
+    participant Docker as Docker (nixos/nix)
+    participant Ubuntu as Hetzner Server (Ubuntu)
+    participant NixOS as Hetzner Server (NixOS)
+
+    Mac->>Docker: ./bootstrap.sh --ip 65.21.x.x --system x86
+    Docker->>Docker: Mount SSH key + project directory
+    Docker->>Ubuntu: nix run nixpkgs#nixos-anywhere<br/>--flake /work#vps-x86<br/>--target-host root@65.21.x.x
+    Ubuntu->>Ubuntu: 1. Upload kexec image
+    Ubuntu->>Ubuntu: 2. Boot into temporary NixOS installer
+    Ubuntu->>Ubuntu: 3. disko partitions /dev/sda (disk.nix)
+    Ubuntu->>Ubuntu: 4. Build NixOS config on server
+    Ubuntu->>Ubuntu: 5. Install NixOS to disk
+    Ubuntu->>NixOS: 6. Reboot
+    Note over NixOS: SSH on port 2222 (key-only)<br/>Firewall active<br/>Auto-updates enabled<br/>OpenClaw gateway running<br/>Ready for API keys
 ```
 
 ### Config Update
 
-```
-./update.sh --ip 65.21.x.x --system arm
-        │
-        ├─ 1. rsync ─────────────────────────────────────────┐
-        │   flake.nix, flake.lock, modules/                    │
-        │                  ──► root@IP:/etc/nixos/ (port 2222)│
-        │                                                     │
-        └─ 2. ssh ───────────────────────────────────────────┘
-            nixos-rebuild switch --flake /etc/nixos#vps-x86 or #vps-arm
+```mermaid
+sequenceDiagram
+    participant Mac as Your Mac
+    participant Server as Hetzner Server (NixOS)
+
+    Mac->>Server: 1. rsync flake.nix, flake.lock, modules/<br/>→ root@IP:/etc/nixos/ (port 2222)
+    Mac->>Server: 2. ssh nixos-rebuild switch<br/>--flake /etc/nixos#vps-x86 or #vps-arm
+    Server->>Server: Build and activate new configuration
 ```
 
 ## Technology Choices

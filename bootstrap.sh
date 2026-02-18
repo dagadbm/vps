@@ -113,6 +113,7 @@ fi
 
 if [ -n "$HOST_ALIAS" ]; then
   HOST_LABEL="$HOST_ALIAS"
+  echo "--- Resolving SSH config for host '$HOST_ALIAS'..."
   SSH_INFO="$(ssh -G "$HOST_ALIAS" 2>/dev/null || true)"
   IP="$(printf '%s\n' "$SSH_INFO" | awk '/^hostname / { print $2; exit }')"
 
@@ -121,6 +122,7 @@ if [ -n "$HOST_ALIAS" ]; then
     echo "Add a Host entry in ~/.ssh/config with a HostName."
     exit 1
   fi
+  echo "    Resolved hostname: $IP"
 
   while IFS= read -r key; do
     key="${key/#\~/$HOME}"
@@ -129,18 +131,27 @@ if [ -n "$HOST_ALIAS" ]; then
       break
     fi
   done < <(printf '%s\n' "$SSH_INFO" | awk '/^identityfile / { print $2 }')
+
+  if [ -n "$SSH_KEY" ]; then
+    echo "    Using SSH key: $SSH_KEY"
+  else
+    echo "    No valid IdentityFile found in SSH config for '$HOST_ALIAS'."
+  fi
 else
   HOST_LABEL="$IP"
 
   # In --ip mode, use explicit --ssh-key first, then try OpenSSH defaults.
   if [ -n "$SSH_KEY" ]; then
     SSH_KEY="${SSH_KEY/#\~/$HOME}"
+    echo "--- Using provided SSH key: $SSH_KEY"
   fi
 
   if [ -z "$SSH_KEY" ]; then
+    echo "--- No SSH key specified, searching defaults..."
     for key in "$HOME/.ssh/id_ed25519" "$HOME/.ssh/id_rsa" "$HOME/.ssh/github_personal"; do
       if [ -f "$key" ]; then
         SSH_KEY="$key"
+        echo "    Found default key: $SSH_KEY"
         break
       fi
     done
