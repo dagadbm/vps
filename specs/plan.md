@@ -28,11 +28,11 @@ The entire setup is reproducible: delete the server, create a new one, run the c
 
 ## What Gets Built (in order)
 
-### Step 1: flake.nix + disk-config.nix
+### Step 1: flake.nix + modules/disk.nix
 
-The foundation. `flake.nix` declares all dependencies (like a `package.json`). `disk-config.nix` tells disko how to partition the hard drive.
+The foundation. `flake.nix` declares all dependencies (like a `package.json`). `modules/disk.nix` tells disko how to partition the hard drive.
 
-### Step 2: configuration.nix
+### Step 2: modules/system.nix
 
 The base NixOS system config. Sets up:
 - System locale, timezone

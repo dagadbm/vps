@@ -10,8 +10,8 @@
 
 {
   imports = [
-    ./modules/security.nix
-    ./modules/openclaw.nix
+    ./security.nix
+    ./openclaw.nix
   ];
 
   # ── System identity ──────────────────────────────────────────────

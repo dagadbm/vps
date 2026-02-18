@@ -13,7 +13,7 @@ Allow this repo to deploy to both Hetzner x86 and ARM VPS types without manual e
 
 ## Target Design
 
-1. Keep one shared NixOS module stack (`configuration.nix`, `modules/*`, `disk-config.nix`).
+1. Keep one shared NixOS module stack (`modules/system.nix`, `modules/*`, `modules/disk.nix`).
 2. Expose two NixOS outputs in `flake.nix`:
    - `vps-x86` (`x86_64-linux`)
    - `vps-arm` (`aarch64-linux`)
@@ -112,7 +112,7 @@ Optional deployment smoke tests:
    - Most config is architecture-independent, but specific packages may fail on ARM.
    - If OpenClaw or dependencies are x86-only, ARM deploy still fails even with correct flake wiring.
 2. Disk/boot assumptions:
-   - `disk-config.nix` and GRUB config are likely fine for both Hetzner VM architectures, but validate on first ARM install.
+   - `modules/disk.nix` and GRUB config are likely fine for both Hetzner VM architectures, but validate on first ARM install.
 ## Suggested Rollout Strategy
 
 1. Merge flake + script + docs changes with explicit architecture selection.

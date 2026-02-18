@@ -41,13 +41,13 @@
         modules = [
           # Declarative disk partitioning
           disko.nixosModules.disko
-          ./disk-config.nix
+          ./modules/disk.nix
 
           # Home Manager as a NixOS module (not standalone)
           home-manager.nixosModules.home-manager
 
           # Main system configuration
-          ./configuration.nix
+          ./modules/system.nix
         ];
       };
     in {

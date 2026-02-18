@@ -52,9 +52,9 @@ dagadbm-vps/
 ├── flake.lock                 # Pinned versions (auto-generated, committed to git)
 ├── bootstrap.sh               # First install script (destructive)
 ├── update.sh                  # Config update script
-├── disk-config.nix            # Disk partitioning layout for disko
-├── configuration.nix          # Main NixOS config (imports modules)
 ├── modules/
+│   ├── disk.nix               # Disk partitioning layout for disko
+│   ├── system.nix             # Main NixOS config (imports other modules)
 │   ├── security.nix           # SSH, firewall, auto-updates
 │   └── openclaw.nix           # OpenClaw via Home Manager + nix-openclaw
 ├── secrets/                   # .gitignored — API keys, tokens
@@ -83,7 +83,7 @@ Think of this as a `package.json` for the entire operating system.
 - `vps-x86` (`x86_64-linux`)
 - `vps-arm` (`aarch64-linux`)
 
-### disk-config.nix — Disk Layout
+### modules/disk.nix — Disk Layout
 
 Tells disko how to partition the Hetzner server's disk:
 
@@ -96,7 +96,7 @@ Tells disko how to partition the Hetzner server's disk:
 
 GRUB is used instead of systemd-boot because Hetzner Cloud VMs require it.
 
-### configuration.nix — The System Recipe
+### modules/system.nix — The System Recipe
 
 Base NixOS configuration:
 - Sets hostname, timezone, locale
@@ -143,7 +143,7 @@ No local Nix required.
 5. Prints post-install steps
 
 **Switch mode** (`update.sh`):
-1. Uses rsync to sync Nix files (`flake.nix`, `flake.lock`, `configuration.nix`, `disk-config.nix`, `modules/`) to `/etc/nixos/` on the server
+1. Uses rsync to sync Nix files (`flake.nix`, `flake.lock`, `modules/`) to `/etc/nixos/` on the server
 2. SSHs in and runs `nixos-rebuild switch --flake /etc/nixos#vps-x86` or `...#vps-arm`
 3. Only needs rsync and SSH (both pre-installed on macOS)
 
@@ -176,7 +176,7 @@ These get manually copied to the server after deploy. Future improvement: use so
 ┌─ Hetzner server (Ubuntu) ───────────────────────────┐
 │ 1. nixos-anywhere uploads kexec image                │
 │ 2. Server boots into temporary NixOS installer       │
-│ 3. disko reads disk-config.nix, partitions /dev/sda  │
+│ 3. disko reads modules/disk.nix, partitions /dev/sda │
 │ 4. NixOS config is built on the server               │
 │ 5. NixOS is installed to disk                        │
 │ 6. Server reboots                                    │
@@ -198,8 +198,7 @@ These get manually copied to the server after deploy. Future improvement: use so
 ./update.sh --ip 65.21.x.x --system arm
         │
         ├─ 1. rsync ─────────────────────────────────────────┐
-        │   flake.nix, flake.lock, configuration.nix,        │
-        │   disk-config.nix, modules/                        │
+        │   flake.nix, flake.lock, modules/                    │
         │                  ──► root@IP:/etc/nixos/ (port 2222)│
         │                                                     │
         └─ 2. ssh ───────────────────────────────────────────┘

@@ -20,8 +20,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NIX_FILES=(
   flake.nix
   flake.lock
-  disk-config.nix
-  configuration.nix
   modules/
 )
 

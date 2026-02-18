@@ -116,10 +116,10 @@ This repo is the server's source code.
 ### Mental model for this repo
 
 - `flake.nix`: project entry point (what can be built/deployed)
-- `configuration.nix`: main system settings
+- `modules/system.nix`: main system settings
 - `modules/security.nix`: SSH, firewall, fail2ban, auto updates
 - `modules/openclaw.nix`: OpenClaw options
-- `disk-config.nix`: disk partition layout for first install
+- `modules/disk.nix`: disk partition layout for first install
 
 ### Which command to use
 
@@ -134,10 +134,10 @@ This repo is the server's source code.
 
 ### Common edits
 
-- Hostname/timezone/locale: `configuration.nix`
+- Hostname/timezone/locale: `modules/system.nix`
 - Open/close ports: `modules/security.nix`
 - OpenClaw config: `modules/openclaw.nix`
-- Disk layout: `disk-config.nix` (destructive during bootstrap)
+- Disk layout: `modules/disk.nix` (destructive during bootstrap)
 
 ### Syntax cheat sheet
 

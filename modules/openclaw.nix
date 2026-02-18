@@ -2,7 +2,7 @@
 #
 # This module configures OpenClaw for the `openclaw` user via Home Manager.
 # The actual Home Manager user config (including the nix-openclaw module import)
-# lives in configuration.nix under home-manager.users.openclaw.
+# lives in modules/system.nix under home-manager.users.openclaw.
 #
 # This file sets the OpenClaw-specific options:
 # - Gateway mode: local (binds to localhost)
@@ -19,7 +19,7 @@
 
 {
   # OpenClaw settings are applied via Home Manager for the openclaw user.
-  # The home-manager.users.openclaw block in configuration.nix imports the
+  # The home-manager.users.openclaw block in modules/system.nix imports the
   # nix-openclaw Home Manager module. Here we set the options.
   home-manager.users.openclaw = { pkgs, ... }: {
     programs.openclaw = {
