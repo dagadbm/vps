@@ -116,6 +116,11 @@ if [ -n "$HOST_ALIAS" ]; then
   echo "--- Resolving SSH config for host '$HOST_ALIAS'..."
   SSH_INFO="$(ssh -G "$HOST_ALIAS" 2>/dev/null || true)"
   IP="$(printf '%s\n' "$SSH_INFO" | awk '/^hostname / { print $2; exit }')"
+  PORTS=("22")
+  SSH_CONFIG_PORT="$(printf '%s\n' "$SSH_INFO" | awk '/^port / { print $2; exit }')"
+  if [ -n "$SSH_CONFIG_PORT" ] && [ "$SSH_CONFIG_PORT" != "22" ]; then
+    PORTS+=("$SSH_CONFIG_PORT")
+  fi
 
   if [ -z "$IP" ] || [ "$IP" = "$HOST_ALIAS" ]; then
     echo "Error: Could not resolve '$HOST_ALIAS' to an IP from SSH config."
@@ -165,6 +170,48 @@ if [ -z "$SSH_KEY" ] || [ ! -f "$SSH_KEY" ]; then
   exit 1
 fi
 
+SSH_PORT="22"
+POST_KEXEC_SSH_PORT="22"
+if [ -n "$HOST_ALIAS" ]; then
+  echo "--- Testing SSH port 22 for $HOST_ALIAS..."
+  if ssh -p 22 -i "$SSH_KEY" \
+    -o BatchMode=yes \
+    -o ConnectTimeout=5 \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    root@"$IP" true 2>/dev/null; then
+    SSH_PORT="22"
+  else
+    for port in "${PORTS[@]}"; do
+      if [ "$port" = "22" ]; then
+        continue
+      fi
+      echo "--- Port 22 failed. Trying SSH port $port from config..."
+      if ssh -p "$port" -i "$SSH_KEY" \
+        -o BatchMode=yes \
+        -o ConnectTimeout=5 \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        root@"$IP" true 2>/dev/null; then
+        SSH_PORT="$port"
+        break
+      fi
+    done
+  fi
+fi
+
+echo "--- SSH connection info"
+if [ -n "$HOST_ALIAS" ]; then
+  echo "    Host (alias): $HOST_ALIAS"
+  echo "    Host (resolved): $IP"
+else
+  echo "    Host: $IP"
+fi
+echo "    SSH key: $SSH_KEY"
+echo "    Initial port: $SSH_PORT"
+echo "    Post-kexec port: $POST_KEXEC_SSH_PORT"
+echo ""
+
 if [ -n "$HOST_ALIAS" ]; then
   POST_INSTALL_SSH="ssh $HOST_ALIAS"
   POST_INSTALL_OPENCLAW_SSH="ssh $HOST_ALIAS -l openclaw"
@@ -200,13 +247,17 @@ fi
 # Remove entries for both the default port and our custom port 2222.
 echo "--- Removing stale SSH host keys for $IP..."
 ssh-keygen -R "$IP" 2>/dev/null || true
+ssh-keygen -R "[$IP]:$SSH_PORT" 2>/dev/null || true
+ssh-keygen -R "[$IP]:$POST_KEXEC_SSH_PORT" 2>/dev/null || true
 ssh-keygen -R "[$IP]:2222" 2>/dev/null || true
 if [ -n "$HOST_ALIAS" ]; then
   ssh-keygen -R "$HOST_ALIAS" 2>/dev/null || true
+  ssh-keygen -R "[$HOST_ALIAS]:$SSH_PORT" 2>/dev/null || true
+  ssh-keygen -R "[$HOST_ALIAS]:$POST_KEXEC_SSH_PORT" 2>/dev/null || true
   ssh-keygen -R "[$HOST_ALIAS]:2222" 2>/dev/null || true
 fi
 
-echo "==> Installing NixOS on $IP (via $HOST_LABEL)..."
+echo "==> Installing NixOS on $IP (via $HOST_LABEL, initial port $SSH_PORT -> post-kexec port $POST_KEXEC_SSH_PORT)..."
 echo "    This will WIPE the disk and install a fresh NixOS system."
 echo "    Using Docker to run nixos-anywhere (no local Nix needed)."
 echo "    Target architecture: $SYSTEM ($NIX_SYSTEM), flake host: $FLAKE_HOST."
@@ -224,7 +275,7 @@ echo ""
 #   3. Builds inside the Docker container for the selected target system, NOT on the remote,
 #      to avoid OOM on low-memory VPS. The closure is copied over SSH.
 #
-# Connects on port 22 (Hetzner default for fresh servers).
+# Connects on port 22 first, then falls back to port(s) from SSH config.
 # SSH options: since the container is ephemeral, we skip host key checking.
 docker run --rm -it \
   -v vps-nix-store:/nix \
@@ -237,6 +288,8 @@ docker run --rm -it \
     nix run nixpkgs#nixos-anywhere -- \
       --flake /work#$FLAKE_HOST \
       --target-host root@$IP \
+      --ssh-port $SSH_PORT \
+      --post-kexec-ssh-port $POST_KEXEC_SSH_PORT \
       --ssh-option StrictHostKeyChecking=no \
       --ssh-option UserKnownHostsFile=/dev/null
   "
