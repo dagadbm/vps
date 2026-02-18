@@ -8,33 +8,50 @@ Declarative NixOS VPS configuration for running OpenClaw (AI/LLM gateway) on Het
 
 ## Deployment Commands
 
-No local Nix required. First install uses Docker; config updates use rsync + SSH.
+No local Nix required. First install uses Docker; config updates use rsync + SSH. Both scripts accept either `--host <alias>` (from `~/.ssh/config`) or `--ip <address>`.
 
 ```bash
 # First install — wipes disk, installs NixOS via Docker + nixos-anywhere (connects on port 22)
-./deploy.sh <IP>
+./bootstrap.sh --host vps-personal
 
-# Push config updates to existing server (rsync + nixos-rebuild, connects on port 2222)
-./deploy.sh <IP> switch
+# First install using direct IP (optional explicit key path)
+./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal
+
+# Push config updates to existing server (rsync + nixos-rebuild, uses SSH config)
+./update.sh --host vps-personal
+
+# Push config updates using direct IP (assumes root@IP on port 2222)
+./update.sh --ip 46.225.171.96
 ```
 
-Prerequisites: Docker Desktop (install mode only), SSH key at `~/.ssh/github_personal`, rsync (ships with macOS).
+Prerequisites: Docker Desktop (bootstrap only), rsync (ships with macOS), and either:
+- SSH config entry for `--host` mode
+- Reachable server IP for `--ip` mode
+
+SSH config example (`~/.ssh/config`):
+```
+Host vps-personal
+    HostName 46.225.171.96
+    User root
+    Port 2222
+    IdentityFile ~/.ssh/github_personal
+```
 
 After first install, manually set up the OpenClaw token:
 ```bash
-ssh -p 2222 openclaw@<IP> 'mkdir -p ~/secrets'
-scp -P 2222 secrets/gateway-token openclaw@<IP>:~/secrets/
+ssh vps-personal -l openclaw 'mkdir -p ~/secrets'
+scp -P 2222 secrets/gateway-token openclaw@vps-personal:~/secrets/
 ```
 
 ## Architecture
 
-**Single flake output**: `nixosConfigurations.dagadbm-vps` (x86_64-linux)
+**Single flake output**: `nixosConfigurations.vps-personal` (x86_64-linux)
 
 **Module structure**:
 - `flake.nix` — Pins dependencies: nixpkgs (unstable), disko, home-manager, nix-openclaw. All inputs follow nixpkgs for version coherence.
 - `configuration.nix` — System identity (hostname, timezone, locale), bootloader (GRUB for Hetzner BIOS boot), user accounts (`root` + `openclaw`), Home Manager integration. Imports both modules below.
 - `disk-config.nix` — Disko partition layout for `/dev/sda`: BIOS boot (1MB) + ESP (512MB at `/boot`) + root (ext4, remaining space).
-- `modules/security.nix` — SSH on port 2222 (key-only, no passwords), firewall (only 2222+443 open), daily auto-upgrades with reboot.
+- `modules/security.nix` — SSH on port 2222 (key-only, no passwords), firewall (only 2222+443 open), fail2ban with SSH jail, daily auto-upgrades with reboot.
 - `modules/openclaw.nix` — OpenClaw via Home Manager for the `openclaw` user. Gateway in local mode (localhost-only), token auth from `/home/openclaw/secrets/gateway-token`, default instance auto-starts.
 
 **Key relationships**:
@@ -46,7 +63,7 @@ scp -P 2222 secrets/gateway-token openclaw@<IP>:~/secrets/
 ## Important Constraints
 
 - **GRUB required**: Hetzner Cloud uses BIOS boot. systemd-boot will not work.
-- **SSH port 2222**: All SSH commands need `-p 2222` (or `-P 2222` for scp). deploy.sh handles this for the `switch` mode.
+- **SSH port 2222**: All SSH commands need `-p 2222` (or `-P 2222` for scp). `update.sh --ip` applies this automatically; `--host` uses your SSH config.
 - **State version 24.11**: Do not change `system.stateVersion` or `home.stateVersion` after deployment.
-- **No fail2ban**: Intentionally omitted for now to avoid lockouts.
+- **fail2ban enabled**: SSH jail on port 2222, bans after 5 failed attempts, incremental ban times for repeat offenders.
 - **Secrets not in Nix**: The gateway token file is manually managed. Future plan is sops-nix.

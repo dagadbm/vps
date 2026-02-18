@@ -1,4 +1,4 @@
-# Main NixOS configuration for the dagadbm-vps server
+# Main NixOS configuration for the vps-personal server
 #
 # This is the "recipe" for the entire system. It defines:
 # - System identity (hostname, timezone, locale)
@@ -15,7 +15,7 @@
   ];
 
   # ── System identity ──────────────────────────────────────────────
-  networking.hostName = "dagadbm-vps";
+  networking.hostName = "vps-personal";
   time.timeZone = "Europe/Lisbon";
   i18n.defaultLocale = "en_US.UTF-8";
 
@@ -26,6 +26,27 @@
     device = "/dev/sda";
     efiSupport = true;
     efiInstallAsRemovable = true;
+  };
+
+  # ── Memory management ─────────────────────────────────────────
+  # zram provides compressed swap in RAM (~2:1 ratio), giving
+  # effectively more usable memory without disk I/O penalty
+  zramSwap = {
+    enable = true;
+    memoryPercent = 50;
+  };
+
+  # Disk-backed swap as a safety net when zram is full
+  swapDevices = [{
+    device = "/mnt/swapfile";
+    size = 4096; # 4GB
+  }];
+
+  # ── Nix build settings ────────────────────────────────────────
+  # Limit build parallelism to reduce peak memory usage
+  nix.settings = {
+    max-jobs = 1;
+    cores = 1;
   };
 
   # ── Packages ─────────────────────────────────────────────────────

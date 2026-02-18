@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# deploy.sh — One-command deploy for the dagadbm-vps NixOS server
+# deploy.sh — One-command deploy for the vps-personal NixOS server
 #
 # No local Nix required. Uses Docker for initial install and rsync+SSH for updates.
 #
@@ -62,7 +62,7 @@ if [ "$MODE" = "switch" ]; then
   echo "--- Running nixos-rebuild switch on $IP ..."
   ssh -p 2222 -i "$SSH_KEY" -o StrictHostKeyChecking=no \
     "root@$IP" \
-    "nixos-rebuild switch --flake /etc/nixos#dagadbm-vps"
+    "nixos-rebuild switch --flake /etc/nixos#vps-personal"
 
   echo ""
   echo "==> Config update complete!"
@@ -103,7 +103,8 @@ else
   # The container:
   #   1. Enables flakes in the ephemeral Nix config
   #   2. Runs nixos-anywhere pointing at the server
-  #   3. --build-on-remote makes the Hetzner server compile everything
+  #   3. Builds inside the Docker container (x86_64-linux), NOT on the remote,
+  #      to avoid OOM on low-memory VPS. The closure is copied over SSH.
   #
   # SSH options: since the container is ephemeral, we skip host key checking
   docker run --rm -it \
@@ -114,9 +115,8 @@ else
       echo 'experimental-features = nix-command flakes' > /root/.config/nix/nix.conf
       chmod 600 /root/.ssh/id_ed25519
       nix run nixpkgs#nixos-anywhere -- \
-        --flake /work#dagadbm-vps \
+        --flake /work#vps-personal \
         --target-host root@$IP \
-        --build-on-remote \
         --ssh-option StrictHostKeyChecking=no \
         --ssh-option UserKnownHostsFile=/dev/null
     "

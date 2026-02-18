@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │ Your Mac  (no Nix installed)                                     │
 │                                                                 │
-│  dagadbm-vps/                                                   │
+│  vps-personal/                                                  │
 │  ├── flake.nix                                                  │
 │  ├── deploy.sh ────┬─── install mode ──► Docker container ─┐    │
 │  ├── ...           │                     (nixos/nix image)  │    │
@@ -47,7 +47,7 @@
 ## File Structure
 
 ```
-dagadbm-vps/
+vps-personal/
 ├── flake.nix                  # Dependency declarations (nixpkgs, disko, nix-openclaw, home-manager)
 ├── flake.lock                 # Pinned versions (auto-generated, committed to git)
 ├── deploy.sh                  # One-command deploy script
@@ -78,7 +78,7 @@ Think of this as a `package.json` for the entire operating system.
 | `home-manager` | Per-user config management | Required by official nix-openclaw |
 | `nix-openclaw` | Official OpenClaw Nix package | Installs and runs OpenClaw |
 
-**Outputs**: A single NixOS system configuration named `dagadbm-vps`.
+**Outputs**: A single NixOS system configuration named `vps-personal`.
 
 ### disk-config.nix — Disk Layout
 
@@ -141,7 +141,7 @@ No local Nix required. The script has two modes:
 
 **Switch mode** (`./deploy.sh <IP> switch`):
 1. Uses rsync to sync Nix files (`flake.nix`, `flake.lock`, `configuration.nix`, `disk-config.nix`, `modules/`) to `/etc/nixos/` on the server
-2. SSHs in and runs `nixos-rebuild switch --flake /etc/nixos#dagadbm-vps`
+2. SSHs in and runs `nixos-rebuild switch --flake /etc/nixos#vps-personal`
 3. Only needs rsync and SSH (both pre-installed on macOS)
 
 ### secrets/ — Your API Keys
@@ -165,7 +165,7 @@ These get manually copied to the server after deploy. Future improvement: use so
 │ docker run nixos/nix                                │
 │   ├── mounts SSH key + project directory            │
 │   └── nix run nixpkgs#nixos-anywhere                │
-│        --flake /work#dagadbm-vps                    │
+│        --flake /work#vps-personal                   │
 │        --target-host root@65.21.x.x                 │
 │        --build-on-remote                            │
 └──────────────────────┬──────────────────────────────┘
@@ -201,7 +201,7 @@ These get manually copied to the server after deploy. Future improvement: use so
         │                  ──► root@IP:/etc/nixos/ (port 2222)│
         │                                                     │
         └─ 2. ssh ───────────────────────────────────────────┘
-            nixos-rebuild switch --flake /etc/nixos#dagadbm-vps
+            nixos-rebuild switch --flake /etc/nixos#vps-personal
 ```
 
 ## Technology Choices

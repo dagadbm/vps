@@ -24,7 +24,7 @@
   };
 
   outputs = { self, nixpkgs, disko, home-manager, nix-openclaw, ... }: {
-    nixosConfigurations.dagadbm-vps = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.vps-personal = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
 
       # Make nix-openclaw available to all modules via specialArgs
