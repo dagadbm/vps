@@ -54,7 +54,7 @@
 
   # Disk-backed swap as a safety net when zram is full
   swapDevices = [{
-    device = "/mnt/swapfile";
+    device = "/swapfile";
     size = 4096; # 4GB
   }];
 

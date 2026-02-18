@@ -122,19 +122,19 @@ echo ""
 
 # 1. rsync the Nix files to the server
 #    --delete removes files in /etc/nixos/ that no longer exist locally
-#    --rsync-path creates the modules/ directory if it doesn't exist
+#    -R (--relative) preserves directory structure (e.g. modules/ stays as modules/)
 echo "--- Syncing Nix files to $TARGET:/etc/nixos/ ..."
-rsync -avz --delete \
+cd "$SCRIPT_DIR"
+rsync -avzRi --delete \
   -e "$RSYNC_SSH" \
-  --rsync-path="mkdir -p /etc/nixos/modules && rsync" \
-  "${NIX_FILES[@]/#/$SCRIPT_DIR/}" \
+  "${NIX_FILES[@]}" \
   "$TARGET:/etc/nixos/"
 
 echo ""
 
 # 2. Run nixos-rebuild on the server
 echo "--- Running nixos-rebuild switch on $TARGET ..."
-ssh "${SSH_OPTS[@]}" "$TARGET" "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
+ssh ${SSH_OPTS[@]+"${SSH_OPTS[@]}"} "$TARGET" "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
 
 echo ""
 echo "==> Config update complete!"

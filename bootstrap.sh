@@ -195,6 +195,17 @@ if ! docker info &>/dev/null; then
   exit 1
 fi
 
+# ── Remove stale host keys ────────────────────────────────────
+# Bootstrap wipes the server, so old SSH host keys are always invalid.
+# Remove entries for both the default port and our custom port 2222.
+echo "--- Removing stale SSH host keys for $IP..."
+ssh-keygen -R "$IP" 2>/dev/null || true
+ssh-keygen -R "[$IP]:2222" 2>/dev/null || true
+if [ -n "$HOST_ALIAS" ]; then
+  ssh-keygen -R "$HOST_ALIAS" 2>/dev/null || true
+  ssh-keygen -R "[$HOST_ALIAS]:2222" 2>/dev/null || true
+fi
+
 echo "==> Installing NixOS on $IP (via $HOST_LABEL)..."
 echo "    This will WIPE the disk and install a fresh NixOS system."
 echo "    Using Docker to run nixos-anywhere (no local Nix needed)."
@@ -216,6 +227,7 @@ echo ""
 # Connects on port 22 (Hetzner default for fresh servers).
 # SSH options: since the container is ephemeral, we skip host key checking.
 docker run --rm -it \
+  -v vps-nix-store:/nix \
   -v "$SSH_KEY:/root/.ssh/id_ed25519:ro" \
   -v "$SCRIPT_DIR:/work" \
   nixos/nix bash -c "

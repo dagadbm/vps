@@ -11,11 +11,11 @@
   services.openssh = {
     enable = true;
 
-    settings = {
-      # Non-standard port reduces noise from automated scanners
-      # Remember: ssh -p 2222 root@<IP>
-      Port = 2222;
+    # Non-standard port reduces noise from automated scanners
+    # This replaces the default [22] — sshd will ONLY listen on 2222
+    ports = [ 2222 ];
 
+    settings = {
       # Only SSH keys, never passwords
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
