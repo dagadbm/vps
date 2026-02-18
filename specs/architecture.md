@@ -4,27 +4,24 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Your Mac                                                        │
+│ Your Mac  (no Nix installed)                                     │
 │                                                                 │
-│  dagadbm-vps/           Nix (installed via Determinate Systems) │
-│  ├── flake.nix          │                                       │
-│  ├── deploy.sh ─────────┼──► nixos-anywhere ──► SSH ──────┐     │
-│  ├── ...                │                                 │     │
-│  └── secrets/           ▼                                 │     │
-│      └── (API keys)   builds the NixOS config             │     │
-│                       (or delegates to server              │     │
-│                        with --build-on-remote)             │     │
-└────────────────────────────────────────────────────────────┼─────┘
-                                                            │
-                                                            ▼
+│  dagadbm-vps/                                                   │
+│  ├── flake.nix                                                  │
+│  ├── deploy.sh ────┬─── install mode ──► Docker container ─┐    │
+│  ├── ...           │                     (nixos/nix image)  │    │
+│  └── secrets/      │                     runs nixos-anywhere│    │
+│      └── (API keys)│                                        │    │
+│                    └─── switch mode ──► rsync + SSH ────────┤    │
+│                         (no Docker needed)                  │    │
+└────────────────────────────────────────────────────────────┼────┘
+                                                             │
+                                                             ▼ SSH
 ┌─────────────────────────────────────────────────────────────────┐
 │ Hetzner Cloud CX23 (4GB RAM, 40GB disk)                         │
 │                                                                 │
-│  1. Starts as Ubuntu (Hetzner default)                          │
-│  2. nixos-anywhere boots NixOS installer via kexec               │
-│  3. disko partitions the disk                                   │
-│  4. NixOS is installed from your flake config                   │
-│  5. Server reboots into NixOS                                   │
+│  Install: Ubuntu → nixos-anywhere → NixOS                       │
+│  Update:  rsync Nix files → nixos-rebuild switch                │
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │ NixOS                                                    │    │
@@ -133,12 +130,19 @@ Uses the official `nix-openclaw` Home Manager module:
 ./deploy.sh <IP> switch   # Push config updates (no reinstall)
 ```
 
-The script:
-1. Checks Nix is installed on your Mac
-2. Validates arguments
-3. For first install: runs `nixos-anywhere --flake .#dagadbm-vps --target-host root@<IP> --build-on-remote`
-4. For updates: runs `nixos-rebuild switch --flake .#dagadbm-vps --target-host root@<IP>`
+No local Nix required. The script has two modes:
+
+**Install mode** (`./deploy.sh <IP>`):
+1. Checks Docker is installed and running
+2. Runs a `nixos/nix` Docker container that executes `nixos-anywhere`
+3. Mounts the SSH key and project directory into the container
+4. `--build-on-remote` makes the Hetzner server compile the configuration
 5. Prints next steps
+
+**Switch mode** (`./deploy.sh <IP> switch`):
+1. Uses rsync to sync Nix files (`flake.nix`, `flake.lock`, `configuration.nix`, `disk-config.nix`, `modules/`) to `/etc/nixos/` on the server
+2. SSHs in and runs `nixos-rebuild switch --flake /etc/nixos#dagadbm-vps`
+3. Only needs rsync and SSH (both pre-installed on macOS)
 
 ### secrets/ — Your API Keys
 
@@ -149,17 +153,21 @@ The script:
 
 These get manually copied to the server after deploy. Future improvement: use sops-nix to encrypt them in the repo.
 
-## Deployment Flow
+## Deployment Flows
+
+### First Install
 
 ```
 ./deploy.sh 65.21.x.x
         │
         ▼
-┌─ Nix on your Mac ──────────────────────────────────┐
-│ nix run nixos-anywhere                              │
-│   --flake .#dagadbm-vps                             │
-│   --target-host root@65.21.x.x                      │
-│   --build-on-remote                                 │
+┌─ Docker on your Mac ───────────────────────────────┐
+│ docker run nixos/nix                                │
+│   ├── mounts SSH key + project directory            │
+│   └── nix run nixpkgs#nixos-anywhere                │
+│        --flake /work#dagadbm-vps                    │
+│        --target-host root@65.21.x.x                 │
+│        --build-on-remote                            │
 └──────────────────────┬──────────────────────────────┘
                        │ SSH
                        ▼
@@ -182,6 +190,20 @@ These get manually copied to the server after deploy. Future improvement: use so
 └──────────────────────────────────────────────────────┘
 ```
 
+### Config Update
+
+```
+./deploy.sh 65.21.x.x switch
+        │
+        ├─ 1. rsync ─────────────────────────────────────────┐
+        │   flake.nix, flake.lock, configuration.nix,        │
+        │   disk-config.nix, modules/                        │
+        │                  ──► root@IP:/etc/nixos/ (port 2222)│
+        │                                                     │
+        └─ 2. ssh ───────────────────────────────────────────┘
+            nixos-rebuild switch --flake /etc/nixos#dagadbm-vps
+```
+
 ## Technology Choices
 
 | Decision | Choice | Alternatives considered | Why this one |
@@ -192,4 +214,5 @@ These get manually copied to the server after deploy. Future improvement: use so
 | OpenClaw install | Official nix-openclaw | Scout-DJ/openclaw-nix, Docker | Official, maintained by OpenClaw team |
 | User management | Home Manager | NixOS system module | Required by official nix-openclaw |
 | Secrets | .gitignored directory | sops-nix, agenix | Simple for now, upgradable later |
-| Nix installer (Mac) | Determinate Systems | Official NixOS installer | Survives macOS upgrades, clean uninstall |
+| Local Nix runtime | Docker (nixos/nix image) | Install Nix on Mac | No Mac-side Nix install needed; Docker is ephemeral |
+| Config updates | rsync + SSH | nixos-rebuild --target-host | No local Nix needed; rsync ships with macOS |

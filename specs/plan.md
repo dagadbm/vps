@@ -10,16 +10,13 @@ The entire setup is reproducible: delete the server, create a new one, run the c
 
 ### On your Mac (one-time setup)
 
-1. **Install Nix** using the Determinate Systems installer:
-   ```
-   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-   ```
-   - Survives macOS upgrades
-   - Clean uninstall available (`/nix/nix-installer uninstall`)
-   - Flakes enabled by default
-   - Does not interfere with Homebrew
+1. **Install Docker Desktop** (for initial install only):
+   - Download from https://docs.docker.com/desktop/install/mac-install/
+   - Not needed for config updates (`switch` mode uses rsync + SSH)
 
-2. **Have an SSH key** (you likely already have one at `~/.ssh/id_ed25519` or `~/.ssh/id_rsa`)
+2. **Have an SSH key** at `~/.ssh/github_personal` (no passphrase)
+
+3. **rsync** (pre-installed on macOS) — used for pushing config updates
 
 ### On Hetzner (each time you want a fresh server)
 
@@ -62,13 +59,18 @@ OpenClaw setup using the official `nix-openclaw` Home Manager module:
 
 ### Step 5: deploy.sh
 
-The "one button" script that:
-1. Checks if Nix is installed on your Mac (tells you how if not)
+The "one button" script. No local Nix required.
+
+**First install** (`./deploy.sh <IP>`):
+1. Checks Docker is installed and running
 2. Validates you passed an IP address
-3. Runs `nixos-anywhere` with `--build-on-remote` to install everything
+3. Runs a `nixos/nix` Docker container that executes `nixos-anywhere` with `--build-on-remote`
 4. Prints next steps (how to SSH in, where to put API keys)
 
-Also supports `./deploy.sh <IP> switch` for pushing config updates without reinstalling.
+**Config updates** (`./deploy.sh <IP> switch`):
+1. Uses rsync to sync Nix files to the server at `/etc/nixos/`
+2. SSHs in and runs `nixos-rebuild switch` on the server
+3. No Docker or local Nix needed — just rsync and SSH
 
 ### Step 6: .gitignore
 

@@ -2,22 +2,27 @@
 #
 # deploy.sh — One-command deploy for the dagadbm-vps NixOS server
 #
+# No local Nix required. Uses Docker for initial install and rsync+SSH for updates.
+#
 # Usage:
-#   ./deploy.sh <IP>          First install (wipes disk, installs NixOS)
+#   ./deploy.sh <IP>          First install (wipes disk, installs NixOS via Docker)
 #   ./deploy.sh <IP> switch   Push config updates to an existing NixOS server
 #
 set -euo pipefail
 
-# ── Check prerequisites ──────────────────────────────────────────
-if ! command -v nix &>/dev/null; then
-  echo "Error: Nix is not installed."
-  echo ""
-  echo "Install it with the Determinate Systems installer:"
-  echo "  curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install"
-  echo ""
-  echo "Then restart your shell and run this script again."
-  exit 1
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# SSH key used for connecting to the server
+SSH_KEY="$HOME/.ssh/github_personal"
+
+# Nix files to sync for config updates (relative to project root)
+NIX_FILES=(
+  flake.nix
+  flake.lock
+  disk-config.nix
+  configuration.nix
+  modules/
+)
 
 # ── Validate arguments ───────────────────────────────────────────
 if [ $# -lt 1 ]; then
@@ -27,8 +32,8 @@ if [ $# -lt 1 ]; then
   echo "  switch        Push config updates (skip full reinstall)"
   echo ""
   echo "Examples:"
-  echo "  ./deploy.sh 65.21.x.x          # First install"
-  echo "  ./deploy.sh 65.21.x.x switch   # Update config"
+  echo "  ./deploy.sh 65.21.x.x          # First install (requires Docker)"
+  echo "  ./deploy.sh 65.21.x.x switch   # Update config (rsync + SSH)"
   exit 1
 fi
 
@@ -40,12 +45,24 @@ if [ "$MODE" = "switch" ]; then
   echo "==> Pushing config update to $IP (port 2222)..."
   echo ""
 
-  # nixos-rebuild connects over SSH to the existing NixOS server
-  # Port 2222 because our security.nix configures SSH on that port
-  NIX_SSHOPTS="-p 2222" nixos-rebuild switch \
-    --flake ".#dagadbm-vps" \
-    --target-host "root@$IP" \
-    --build-on-remote
+  # 1. rsync the Nix files to the server
+  #    --delete removes files in /etc/nixos/ that no longer exist locally
+  #    -e sets the SSH command with custom port
+  #    --rsync-path creates the modules/ directory if it doesn't exist
+  echo "--- Syncing Nix files to $IP:/etc/nixos/ ..."
+  rsync -avz --delete \
+    -e "ssh -p 2222 -i $SSH_KEY -o StrictHostKeyChecking=no" \
+    --rsync-path="mkdir -p /etc/nixos/modules && rsync" \
+    "${NIX_FILES[@]/#/$SCRIPT_DIR/}" \
+    "root@$IP:/etc/nixos/"
+
+  echo ""
+
+  # 2. Run nixos-rebuild on the server
+  echo "--- Running nixos-rebuild switch on $IP ..."
+  ssh -p 2222 -i "$SSH_KEY" -o StrictHostKeyChecking=no \
+    "root@$IP" \
+    "nixos-rebuild switch --flake /etc/nixos#dagadbm-vps"
 
   echo ""
   echo "==> Config update complete!"
@@ -54,20 +71,55 @@ if [ "$MODE" = "switch" ]; then
   echo "  ssh -p 2222 root@$IP          # SSH into the server"
   echo "  ssh -p 2222 openclaw@$IP      # SSH as openclaw user"
 else
+  # ── Check Docker is available ──────────────────────────────────
+  if ! command -v docker &>/dev/null; then
+    echo "Error: Docker is not installed."
+    echo ""
+    echo "Install Docker Desktop for Mac:"
+    echo "  https://docs.docker.com/desktop/install/mac-install/"
+    echo ""
+    echo "Then restart your terminal and run this script again."
+    exit 1
+  fi
+
+  if ! docker info &>/dev/null; then
+    echo "Error: Docker daemon is not running."
+    echo ""
+    echo "Start Docker Desktop and try again."
+    exit 1
+  fi
+
   echo "==> Installing NixOS on $IP..."
   echo "    This will WIPE the disk and install a fresh NixOS system."
+  echo "    Using Docker to run nixos-anywhere (no local Nix needed)."
   echo ""
 
-  # nixos-anywhere:
-  # 1. SSHs into the server (Ubuntu) on the default port 22
-  # 2. Boots a temporary NixOS installer via kexec
-  # 3. Partitions the disk using disko (disk-config.nix)
-  # 4. Builds and installs the NixOS config on the server
-  # 5. Reboots into the new NixOS system
-  nix run github:nix-community/nixos-anywhere -- \
-    --flake ".#dagadbm-vps" \
-    --target-host "root@$IP" \
-    --build-on-remote
+  # Run nixos-anywhere inside a nixos/nix Docker container.
+  #
+  # Mounts:
+  #   - SSH key as /root/.ssh/id_ed25519 (read-only) so nixos-anywhere can reach the server
+  #   - Project directory as /work so the flake is available inside the container
+  #
+  # The container:
+  #   1. Enables flakes in the ephemeral Nix config
+  #   2. Runs nixos-anywhere pointing at the server
+  #   3. --build-on-remote makes the Hetzner server compile everything
+  #
+  # SSH options: since the container is ephemeral, we skip host key checking
+  docker run --rm -it \
+    -v "$SSH_KEY:/root/.ssh/id_ed25519:ro" \
+    -v "$SCRIPT_DIR:/work" \
+    nixos/nix bash -c "
+      mkdir -p /root/.config/nix
+      echo 'experimental-features = nix-command flakes' > /root/.config/nix/nix.conf
+      chmod 600 /root/.ssh/id_ed25519
+      nix run nixpkgs#nixos-anywhere -- \
+        --flake /work#dagadbm-vps \
+        --target-host root@$IP \
+        --build-on-remote \
+        --ssh-option StrictHostKeyChecking=no \
+        --ssh-option UserKnownHostsFile=/dev/null
+    "
 
   echo ""
   echo "==> NixOS installation complete!"
