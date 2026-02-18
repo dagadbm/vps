@@ -28,7 +28,7 @@ Both scripts are strict: you must pass exactly one of:
 If you use `--host`, add an SSH config entry like:
 
 ```sshconfig
-Host vps-personal
+Host host-name
     HostName 46.225.171.96
     User root
     Port 2222
@@ -40,7 +40,7 @@ Host vps-personal
 Using SSH host alias:
 
 ```bash
-./bootstrap.sh --host vps-personal
+./bootstrap.sh --host host-name
 ```
 
 Using direct IP:
@@ -58,7 +58,7 @@ Notes:
 Using SSH host alias:
 
 ```bash
-./update.sh --host vps-personal
+./update.sh --host host-name
 ```
 
 Using direct IP:
@@ -115,7 +115,7 @@ This repo is the server's source code.
 ### Typical change flow
 
 1. Edit a `.nix` file.
-2. Run `./update.sh --host vps-personal` (or `--ip ...`).
+2. Run `./update.sh --host host-name` (or `--ip ...`).
 3. Verify server behavior.
 
 ### Common edits

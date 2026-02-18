@@ -28,7 +28,7 @@ usage() {
   echo "  --ssh-key <PATH>  SSH private key path for --ip mode (optional)"
   echo ""
   echo "Examples:"
-  echo "  ./bootstrap.sh --host vps-personal"
+  echo "  ./bootstrap.sh --host host-name"
   echo "  ./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal"
 }
 

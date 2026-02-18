@@ -12,13 +12,13 @@ No local Nix required. First install uses Docker; config updates use rsync + SSH
 
 ```bash
 # First install — wipes disk, installs NixOS via Docker + nixos-anywhere (connects on port 22)
-./bootstrap.sh --host vps-personal
+./bootstrap.sh --host host-name
 
 # First install using direct IP (optional explicit key path)
 ./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal
 
 # Push config updates to existing server (rsync + nixos-rebuild, uses SSH config)
-./update.sh --host vps-personal
+./update.sh --host host-name
 
 # Push config updates using direct IP (assumes root@IP on port 2222)
 ./update.sh --ip 46.225.171.96
@@ -30,7 +30,7 @@ Prerequisites: Docker Desktop (bootstrap only), rsync (ships with macOS), and ei
 
 SSH config example (`~/.ssh/config`):
 ```
-Host vps-personal
+Host host-name
     HostName 46.225.171.96
     User root
     Port 2222

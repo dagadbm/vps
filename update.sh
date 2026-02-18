@@ -35,7 +35,7 @@ usage() {
   echo "  --ip <IP>         Server IP address (uses root@IP on port 2222)"
   echo ""
   echo "Examples:"
-  echo "  ./update.sh --host vps-personal"
+  echo "  ./update.sh --host host-name"
   echo "  ./update.sh --ip 46.225.171.96"
 }
 
