@@ -30,26 +30,31 @@
   # `outputs = { ... }: { ... }` is a function:
   # - left side: named inputs passed in
   # - right side: attributes exported by this flake
-  outputs = { self, nixpkgs, disko, home-manager, nix-openclaw, ... }: {
-    # This name is what you target in commands like:
-    # nixos-rebuild switch --flake .#vps-personal
-    nixosConfigurations.vps-personal = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
+  outputs = { self, nixpkgs, disko, home-manager, nix-openclaw, ... }:
+    let
+      mkVps = system: nixpkgs.lib.nixosSystem {
+        inherit system;
 
-      # Make nix-openclaw available to all modules via specialArgs
-      specialArgs = { inherit nix-openclaw; };
+        # Make nix-openclaw available to all modules via specialArgs
+        specialArgs = { inherit nix-openclaw; };
 
-      modules = [
-        # Declarative disk partitioning
-        disko.nixosModules.disko
-        ./disk-config.nix
+        modules = [
+          # Declarative disk partitioning
+          disko.nixosModules.disko
+          ./disk-config.nix
 
-        # Home Manager as a NixOS module (not standalone)
-        home-manager.nixosModules.home-manager
+          # Home Manager as a NixOS module (not standalone)
+          home-manager.nixosModules.home-manager
 
-        # Main system configuration
-        ./configuration.nix
-      ];
+          # Main system configuration
+          ./configuration.nix
+        ];
+      };
+    in {
+      # Target names for deployment commands:
+      # nixos-rebuild switch --flake .#vps-x86
+      # nixos-rebuild switch --flake .#vps-arm
+      nixosConfigurations.vps-x86 = mkVps "x86_64-linux";
+      nixosConfigurations.vps-arm = mkVps "aarch64-linux";
     };
-  };
 }

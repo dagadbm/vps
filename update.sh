@@ -6,8 +6,8 @@
 # Uses your SSH config for connection details (port, key, user, etc).
 #
 # Usage:
-#   ./update.sh --host <HOST>
-#   ./update.sh --ip <IP>
+#   ./update.sh --host <HOST> --system <x86|arm>
+#   ./update.sh --ip <IP> --system <x86|arm>
 #
 # --host uses ~/.ssh/config for host/port/user/key.
 # --ip connects directly as root on port 2222.
@@ -27,20 +27,23 @@ NIX_FILES=(
 
 usage() {
   echo "Usage:"
-  echo "  ./update.sh --host <HOST>"
-  echo "  ./update.sh --ip <IP>"
+  echo "  ./update.sh --host <HOST> --system <x86|arm>"
+  echo "  ./update.sh --ip <IP> --system <x86|arm>"
   echo ""
   echo "Options:"
   echo "  --host <HOST>     SSH config hostname (reads ~/.ssh/config)"
   echo "  --ip <IP>         Server IP address (uses root@IP on port 2222)"
+  echo "  --system <VALUE>  Target architecture: x86 or arm (required)"
   echo ""
   echo "Examples:"
-  echo "  ./update.sh --host host-name"
-  echo "  ./update.sh --ip 46.225.171.96"
+  echo "  ./update.sh --host host-name --system x86"
+  echo "  ./update.sh --host host-name --system arm"
+  echo "  ./update.sh --ip 46.225.171.96 --system arm"
 }
 
 HOST_ALIAS=""
 IP=""
+SYSTEM=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -54,6 +57,11 @@ while [ $# -gt 0 ]; do
       IP="$2"
       shift 2
       ;;
+    --system)
+      [ $# -ge 2 ] || { echo "Error: --system requires a value."; usage; exit 1; }
+      SYSTEM="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -65,6 +73,26 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+if [ -z "$SYSTEM" ]; then
+  echo "Error: --system is required (x86 or arm)."
+  usage
+  exit 1
+fi
+
+if [ "$SYSTEM" != "x86" ] && [ "$SYSTEM" != "arm" ]; then
+  echo "Error: --system must be one of: x86, arm."
+  usage
+  exit 1
+fi
+
+if [ "$SYSTEM" = "arm" ]; then
+  NIX_SYSTEM="aarch64-linux"
+  FLAKE_HOST="vps-arm"
+else
+  NIX_SYSTEM="x86_64-linux"
+  FLAKE_HOST="vps-x86"
+fi
 
 if [ -n "$HOST_ALIAS" ] && [ -n "$IP" ]; then
   echo "Error: Use either --host or --ip, not both."
@@ -91,6 +119,7 @@ else
 fi
 
 echo "==> Pushing config update to $TARGET_LABEL..."
+echo "    Target architecture: $SYSTEM ($NIX_SYSTEM), flake host: $FLAKE_HOST."
 echo ""
 
 # 1. rsync the Nix files to the server
@@ -107,7 +136,7 @@ echo ""
 
 # 2. Run nixos-rebuild on the server
 echo "--- Running nixos-rebuild switch on $TARGET ..."
-ssh "${SSH_OPTS[@]}" "$TARGET" "nixos-rebuild switch --flake /etc/nixos#vps-personal"
+ssh "${SSH_OPTS[@]}" "$TARGET" "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
 
 echo ""
 echo "==> Config update complete!"

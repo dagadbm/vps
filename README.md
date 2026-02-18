@@ -18,6 +18,16 @@ Both scripts are strict: you must pass exactly one of:
 - `--host <ssh-alias>`: resolve connection details from `~/.ssh/config`
 - `--ip <server-ip>`: connect directly by IP
 
+Architecture selection:
+- `--system x86`: targets flake output `vps-x86`
+- `--system arm`: targets flake output `vps-arm`
+
+Hetzner server type mapping:
+| Hetzner VPS type | Use |
+|---|---|
+| Intel/AMD VPS (x86_64) | `--system x86` |
+| ARM VPS (aarch64) | `--system arm` |
+
 ## Prerequisites
 
 - Docker Desktop (for `bootstrap.sh`)
@@ -40,31 +50,35 @@ Host host-name
 Using SSH host alias:
 
 ```bash
-./bootstrap.sh --host host-name
+./bootstrap.sh --host host-name --system x86
+./bootstrap.sh --host host-name --system arm
 ```
 
 Using direct IP:
 
 ```bash
 ./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal
+./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal --system arm
 ```
 
 Notes:
 - Bootstrap connects on port `22` (fresh Hetzner default).
-- It runs `nixos-anywhere` via Docker and installs the flake output `vps-personal`.
+- It runs `nixos-anywhere` via Docker and installs either `vps-x86` or `vps-arm`.
 
 ## Update an existing server
 
 Using SSH host alias:
 
 ```bash
-./update.sh --host host-name
+./update.sh --host host-name --system x86
+./update.sh --host host-name --system arm
 ```
 
 Using direct IP:
 
 ```bash
-./update.sh --ip 46.225.171.96
+./update.sh --ip 46.225.171.96 --system x86
+./update.sh --ip 46.225.171.96 --system arm
 ```
 
 Notes:
@@ -74,8 +88,8 @@ Notes:
 ## After first install: add OpenClaw token
 
 ```bash
-ssh vps-personal -l openclaw 'mkdir -p ~/secrets'
-scp -P 2222 secrets/gateway-token openclaw@vps-personal:~/secrets/
+ssh host-name -l openclaw 'mkdir -p ~/secrets'
+scp -P 2222 secrets/gateway-token openclaw@host-name:~/secrets/
 ```
 
 If you are using direct IP instead of host alias:
@@ -115,7 +129,7 @@ This repo is the server's source code.
 ### Typical change flow
 
 1. Edit a `.nix` file.
-2. Run `./update.sh --host host-name` (or `--ip ...`).
+2. Run `./update.sh --host host-name --system x86` (or `--ip ... --system arm`).
 3. Verify server behavior.
 
 ### Common edits

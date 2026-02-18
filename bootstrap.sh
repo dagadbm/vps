@@ -6,8 +6,8 @@
 # Connects on port 22 (Hetzner default) since NixOS isn't installed yet.
 #
 # Usage:
-#   ./bootstrap.sh --host <HOST>
-#   ./bootstrap.sh --ip <IP> [--ssh-key <PATH>]
+#   ./bootstrap.sh --host <HOST> --system <x86|arm>
+#   ./bootstrap.sh --ip <IP> --system <x86|arm> [--ssh-key <PATH>]
 #
 # --host uses ~/.ssh/config to resolve HostName and IdentityFile.
 # --ip connects directly and uses --ssh-key (or a detected default key).
@@ -19,22 +19,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   echo "Usage:"
-  echo "  ./bootstrap.sh --host <HOST>"
-  echo "  ./bootstrap.sh --ip <IP> [--ssh-key <PATH>]"
+  echo "  ./bootstrap.sh --host <HOST> --system <x86|arm>"
+  echo "  ./bootstrap.sh --ip <IP> --system <x86|arm> [--ssh-key <PATH>]"
   echo ""
   echo "Options:"
   echo "  --host <HOST>     SSH config hostname (reads ~/.ssh/config)"
   echo "  --ip <IP>         Server IP address"
   echo "  --ssh-key <PATH>  SSH private key path for --ip mode (optional)"
+  echo "  --system <VALUE>  Target architecture: x86 or arm (required)"
   echo ""
   echo "Examples:"
-  echo "  ./bootstrap.sh --host host-name"
-  echo "  ./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal"
+  echo "  ./bootstrap.sh --host host-name --system x86"
+  echo "  ./bootstrap.sh --host host-name --system arm"
+  echo "  ./bootstrap.sh --ip 46.225.171.96 --system x86 --ssh-key ~/.ssh/github_personal"
 }
 
 HOST_ALIAS=""
 IP=""
 SSH_KEY=""
+SYSTEM=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -53,6 +56,11 @@ while [ $# -gt 0 ]; do
       SSH_KEY="$2"
       shift 2
       ;;
+    --system)
+      [ $# -ge 2 ] || { echo "Error: --system requires a value."; usage; exit 1; }
+      SYSTEM="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -64,6 +72,26 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+if [ -z "$SYSTEM" ]; then
+  echo "Error: --system is required (x86 or arm)."
+  usage
+  exit 1
+fi
+
+if [ "$SYSTEM" != "x86" ] && [ "$SYSTEM" != "arm" ]; then
+  echo "Error: --system must be one of: x86, arm."
+  usage
+  exit 1
+fi
+
+if [ "$SYSTEM" = "arm" ]; then
+  NIX_SYSTEM="aarch64-linux"
+  FLAKE_HOST="vps-arm"
+else
+  NIX_SYSTEM="x86_64-linux"
+  FLAKE_HOST="vps-x86"
+fi
 
 if [ -n "$HOST_ALIAS" ] && [ -n "$IP" ]; then
   echo "Error: Use either --host or --ip, not both."
@@ -130,12 +158,12 @@ if [ -n "$HOST_ALIAS" ]; then
   POST_INSTALL_SSH="ssh $HOST_ALIAS"
   POST_INSTALL_OPENCLAW_SSH="ssh $HOST_ALIAS -l openclaw"
   POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$HOST_ALIAS:~/secrets/"
-  POST_INSTALL_UPDATE="./update.sh --host $HOST_ALIAS"
+  POST_INSTALL_UPDATE="./update.sh --host $HOST_ALIAS --system $SYSTEM"
 else
   POST_INSTALL_SSH="ssh -p 2222 root@$IP"
   POST_INSTALL_OPENCLAW_SSH="ssh -p 2222 openclaw@$IP"
   POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$IP:~/secrets/"
-  POST_INSTALL_UPDATE="./update.sh --ip $IP"
+  POST_INSTALL_UPDATE="./update.sh --ip $IP --system $SYSTEM"
 fi
 
 # ── Check Docker is available ──────────────────────────────────
@@ -159,6 +187,7 @@ fi
 echo "==> Installing NixOS on $IP (via $HOST_LABEL)..."
 echo "    This will WIPE the disk and install a fresh NixOS system."
 echo "    Using Docker to run nixos-anywhere (no local Nix needed)."
+echo "    Target architecture: $SYSTEM ($NIX_SYSTEM), flake host: $FLAKE_HOST."
 echo ""
 
 # Run nixos-anywhere inside a nixos/nix Docker container.
@@ -170,7 +199,7 @@ echo ""
 # The container:
 #   1. Enables flakes in the ephemeral Nix config
 #   2. Runs nixos-anywhere pointing at the server
-#   3. Builds inside the Docker container (x86_64-linux), NOT on the remote,
+#   3. Builds inside the Docker container for the selected target system, NOT on the remote,
 #      to avoid OOM on low-memory VPS. The closure is copied over SSH.
 #
 # Connects on port 22 (Hetzner default for fresh servers).
@@ -183,7 +212,7 @@ docker run --rm -it \
     echo 'experimental-features = nix-command flakes' > /root/.config/nix/nix.conf
     chmod 600 /root/.ssh/id_ed25519
     nix run nixpkgs#nixos-anywhere -- \
-      --flake /work#vps-personal \
+      --flake /work#$FLAKE_HOST \
       --target-host root@$IP \
       --ssh-option StrictHostKeyChecking=no \
       --ssh-option UserKnownHostsFile=/dev/null

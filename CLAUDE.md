@@ -8,20 +8,24 @@ Declarative NixOS VPS configuration for running OpenClaw (AI/LLM gateway) on Het
 
 ## Deployment Commands
 
-No local Nix required. First install uses Docker; config updates use rsync + SSH. Both scripts accept either `--host <alias>` (from `~/.ssh/config`) or `--ip <address>`.
+No local Nix required. First install uses Docker; config updates use rsync + SSH. Both scripts accept either `--host <alias>` (from `~/.ssh/config`) or `--ip <address>`, plus required `--system <x86|arm>`.
 
 ```bash
 # First install — wipes disk, installs NixOS via Docker + nixos-anywhere (connects on port 22)
-./bootstrap.sh --host host-name
+./bootstrap.sh --host host-name --system x86
+./bootstrap.sh --host host-name --system arm
 
 # First install using direct IP (optional explicit key path)
-./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal
+./bootstrap.sh --ip 46.225.171.96 --system x86 --ssh-key ~/.ssh/github_personal
+./bootstrap.sh --ip 46.225.171.96 --system arm --ssh-key ~/.ssh/github_personal
 
 # Push config updates to existing server (rsync + nixos-rebuild, uses SSH config)
-./update.sh --host host-name
+./update.sh --host host-name --system x86
+./update.sh --host host-name --system arm
 
 # Push config updates using direct IP (assumes root@IP on port 2222)
-./update.sh --ip 46.225.171.96
+./update.sh --ip 46.225.171.96 --system x86
+./update.sh --ip 46.225.171.96 --system arm
 ```
 
 Prerequisites: Docker Desktop (bootstrap only), rsync (ships with macOS), and either:
@@ -39,13 +43,15 @@ Host host-name
 
 After first install, manually set up the OpenClaw token:
 ```bash
-ssh vps-personal -l openclaw 'mkdir -p ~/secrets'
-scp -P 2222 secrets/gateway-token openclaw@vps-personal:~/secrets/
+ssh host-name -l openclaw 'mkdir -p ~/secrets'
+scp -P 2222 secrets/gateway-token openclaw@host-name:~/secrets/
 ```
 
 ## Architecture
 
-**Single flake output**: `nixosConfigurations.vps-personal` (x86_64-linux)
+**Flake outputs**:
+- `nixosConfigurations.vps-x86` (`x86_64-linux`)
+- `nixosConfigurations.vps-arm` (`aarch64-linux`)
 
 **Module structure**:
 - `flake.nix` — Pins dependencies: nixpkgs (unstable), disko, home-manager, nix-openclaw. All inputs follow nixpkgs for version coherence.

@@ -6,9 +6,9 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │ Your Mac  (no Nix installed)                                     │
 │                                                                 │
-│  vps-personal/                                                  │
+│  dagadbm-vps/                                                   │
 │  ├── flake.nix                                                  │
-│  ├── deploy.sh ────┬─── install mode ──► Docker container ─┐    │
+│  ├── bootstrap.sh ─┬─── install mode ──► Docker container ─┐    │
 │  ├── ...           │                     (nixos/nix image)  │    │
 │  └── secrets/      │                     runs nixos-anywhere│    │
 │      └── (API keys)│                                        │    │
@@ -47,10 +47,11 @@
 ## File Structure
 
 ```
-vps-personal/
+dagadbm-vps/
 ├── flake.nix                  # Dependency declarations (nixpkgs, disko, nix-openclaw, home-manager)
 ├── flake.lock                 # Pinned versions (auto-generated, committed to git)
-├── deploy.sh                  # One-command deploy script
+├── bootstrap.sh               # First install script (destructive)
+├── update.sh                  # Config update script
 ├── disk-config.nix            # Disk partitioning layout for disko
 ├── configuration.nix          # Main NixOS config (imports modules)
 ├── modules/
@@ -78,7 +79,9 @@ Think of this as a `package.json` for the entire operating system.
 | `home-manager` | Per-user config management | Required by official nix-openclaw |
 | `nix-openclaw` | Official OpenClaw Nix package | Installs and runs OpenClaw |
 
-**Outputs**: A single NixOS system configuration named `vps-personal`.
+**Outputs**: Two NixOS configurations:
+- `vps-x86` (`x86_64-linux`)
+- `vps-arm` (`aarch64-linux`)
 
 ### disk-config.nix — Disk Layout
 
@@ -123,25 +126,25 @@ Uses the official `nix-openclaw` Home Manager module:
 - State stored in `/home/openclaw/.openclaw/`
 - API keys loaded from `/home/openclaw/secrets/`
 
-### deploy.sh — The One Button
+### bootstrap.sh + update.sh — Deploy Workflow
 
 ```
-./deploy.sh <IP>          # First install (wipes disk, installs NixOS)
-./deploy.sh <IP> switch   # Push config updates (no reinstall)
+./bootstrap.sh --host <HOST> --system <x86|arm>  # First install (wipes disk)
+./update.sh --host <HOST> --system <x86|arm>     # Config update
 ```
 
-No local Nix required. The script has two modes:
+No local Nix required.
 
-**Install mode** (`./deploy.sh <IP>`):
+**Install mode** (`bootstrap.sh`):
 1. Checks Docker is installed and running
 2. Runs a `nixos/nix` Docker container that executes `nixos-anywhere`
 3. Mounts the SSH key and project directory into the container
-4. `--build-on-remote` makes the Hetzner server compile the configuration
-5. Prints next steps
+4. Uses `--flake /work#vps-x86` with `--system x86` or `--flake /work#vps-arm` with `--system arm`
+5. Prints post-install steps
 
-**Switch mode** (`./deploy.sh <IP> switch`):
+**Switch mode** (`update.sh`):
 1. Uses rsync to sync Nix files (`flake.nix`, `flake.lock`, `configuration.nix`, `disk-config.nix`, `modules/`) to `/etc/nixos/` on the server
-2. SSHs in and runs `nixos-rebuild switch --flake /etc/nixos#vps-personal`
+2. SSHs in and runs `nixos-rebuild switch --flake /etc/nixos#vps-x86` or `...#vps-arm`
 3. Only needs rsync and SSH (both pre-installed on macOS)
 
 ### secrets/ — Your API Keys
@@ -158,16 +161,15 @@ These get manually copied to the server after deploy. Future improvement: use so
 ### First Install
 
 ```
-./deploy.sh 65.21.x.x
+./bootstrap.sh --ip 65.21.x.x --ssh-key ~/.ssh/id_ed25519 --system x86
         │
         ▼
 ┌─ Docker on your Mac ───────────────────────────────┐
 │ docker run nixos/nix                                │
 │   ├── mounts SSH key + project directory            │
 │   └── nix run nixpkgs#nixos-anywhere                │
-│        --flake /work#vps-personal                   │
+│        --flake /work#vps-x86 or /work#vps-arm       │
 │        --target-host root@65.21.x.x                 │
-│        --build-on-remote                            │
 └──────────────────────┬──────────────────────────────┘
                        │ SSH
                        ▼
@@ -193,7 +195,7 @@ These get manually copied to the server after deploy. Future improvement: use so
 ### Config Update
 
 ```
-./deploy.sh 65.21.x.x switch
+./update.sh --ip 65.21.x.x --system arm
         │
         ├─ 1. rsync ─────────────────────────────────────────┐
         │   flake.nix, flake.lock, configuration.nix,        │
@@ -201,7 +203,7 @@ These get manually copied to the server after deploy. Future improvement: use so
         │                  ──► root@IP:/etc/nixos/ (port 2222)│
         │                                                     │
         └─ 2. ssh ───────────────────────────────────────────┘
-            nixos-rebuild switch --flake /etc/nixos#vps-personal
+            nixos-rebuild switch --flake /etc/nixos#vps-x86 or #vps-arm
 ```
 
 ## Technology Choices
