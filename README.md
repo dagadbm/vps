@@ -39,10 +39,10 @@ If you use `--host`, add an SSH config entry like:
 
 ```sshconfig
 Host host-name
-    HostName 46.225.171.96
+    HostName 123.123.123.123
     User root
     Port 2222
-    IdentityFile ~/.ssh/github_personal
+    IdentityFile ~/.ssh/ssh_key
 ```
 
 ## First install (destroys existing server data)
@@ -57,8 +57,8 @@ Using SSH host alias:
 Using direct IP:
 
 ```bash
-./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal
-./bootstrap.sh --ip 46.225.171.96 --ssh-key ~/.ssh/github_personal --system arm
+./bootstrap.sh --ip 123.123.123.123 --ssh-key ~/.ssh/ssh_key
+./bootstrap.sh --ip 123.123.123.123 --ssh-key ~/.ssh/ssh_key --system arm
 ```
 
 Notes:
@@ -77,8 +77,8 @@ Using SSH host alias:
 Using direct IP:
 
 ```bash
-./update.sh --ip 46.225.171.96 --system x86
-./update.sh --ip 46.225.171.96 --system arm
+./update.sh --ip 123.123.123.123 --system x86
+./update.sh --ip 123.123.123.123 --system arm
 ```
 
 Notes:
@@ -95,8 +95,8 @@ scp -P 2222 secrets/gateway-token openclaw@host-name:~/secrets/
 If you are using direct IP instead of host alias:
 
 ```bash
-ssh -p 2222 openclaw@46.225.171.96 'mkdir -p ~/secrets'
-scp -P 2222 secrets/gateway-token openclaw@46.225.171.96:~/secrets/
+ssh -p 2222 openclaw@123.123.123.123 'mkdir -p ~/secrets'
+scp -P 2222 secrets/gateway-token openclaw@123.123.123.123:~/secrets/
 ```
 
 ## Safety checklist
@@ -118,7 +118,7 @@ This repo is the server's source code.
 - `flake.nix`: project entry point (what can be built/deployed)
 - `modules/system.nix`: main system settings
 - `modules/security.nix`: SSH, firewall, fail2ban, auto updates
-- `modules/openclaw.nix`: OpenClaw options
+- `home-manager/openclaw.nix`: OpenClaw options
 - `modules/disk.nix`: disk partition layout for first install
 
 ### Which command to use
@@ -136,7 +136,7 @@ This repo is the server's source code.
 
 - Hostname/timezone/locale: `modules/system.nix`
 - Open/close ports: `modules/security.nix`
-- OpenClaw config: `modules/openclaw.nix`
+- OpenClaw config: `home-manager/openclaw.nix`
 - Disk layout: `modules/disk.nix` (destructive during bootstrap)
 
 ### Syntax cheat sheet

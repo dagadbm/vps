@@ -16,16 +16,16 @@ No local Nix required. First install uses Docker; config updates use rsync + SSH
 ./bootstrap.sh --host host-name --system arm
 
 # First install using direct IP (optional explicit key path)
-./bootstrap.sh --ip 46.225.171.96 --system x86 --ssh-key ~/.ssh/github_personal
-./bootstrap.sh --ip 46.225.171.96 --system arm --ssh-key ~/.ssh/github_personal
+./bootstrap.sh --ip 123.123.123.123 --system x86 --ssh-key ~/.ssh/ssh_key
+./bootstrap.sh --ip 123.123.123.123 --system arm --ssh-key ~/.ssh/ssh_key
 
 # Push config updates to existing server (rsync + nixos-rebuild, uses SSH config)
 ./update.sh --host host-name --system x86
 ./update.sh --host host-name --system arm
 
 # Push config updates using direct IP (assumes root@IP on port 2222)
-./update.sh --ip 46.225.171.96 --system x86
-./update.sh --ip 46.225.171.96 --system arm
+./update.sh --ip 123.123.123.123 --system x86
+./update.sh --ip 123.123.123.123 --system arm
 ```
 
 Prerequisites: Docker Desktop (bootstrap only), rsync (ships with macOS), and either:
@@ -35,10 +35,10 @@ Prerequisites: Docker Desktop (bootstrap only), rsync (ships with macOS), and ei
 SSH config example (`~/.ssh/config`):
 ```
 Host host-name
-    HostName 46.225.171.96
+    HostName 123.123.123.123
     User root
     Port 2222
-    IdentityFile ~/.ssh/github_personal
+    IdentityFile ~/.ssh/ssh_key
 ```
 
 After first install, manually set up the OpenClaw token:

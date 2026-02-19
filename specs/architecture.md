@@ -52,13 +52,12 @@ dagadbm-vps/
 ├── modules/
 │   ├── disk.nix               # Disk partitioning layout for disko
 │   ├── system.nix             # Main NixOS config (imports other modules)
-│   ├── security.nix           # SSH, firewall, auto-updates
+│   └── security.nix           # SSH, firewall, auto-updates
+├── home-manager/
 │   └── openclaw.nix           # OpenClaw via Home Manager + nix-openclaw
 ├── secrets/                   # .gitignored — API keys, tokens
 │   └── .gitkeep
-├── specs/
-│   ├── plan.md                # This plan
-│   └── architecture.md        # This file
+├── specs/                      
 └── .gitignore
 ```
 
