@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# update.sh — Push config updates to an existing NixOS server
+# update.sh — Update flake inputs and sync to server
 #
-# Syncs Nix files via rsync and runs nixos-rebuild switch.
-# Uses your SSH config for connection details (port, key, user, etc).
+# Runs `nix flake update` to update flake.lock, then calls sync.sh
+# to push the changes to the server and rebuild.
 #
 # Usage:
 #   ./update.sh --host <HOST> --system <x86|arm>
@@ -15,27 +15,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# ── Helper: run a command on the remote server ───────────────
-# Uses HOST_ALIAS (via SSH config) or root@IP on port 2222.
-# Usage: remote_ssh [ssh-opts...] <command>
-remote_ssh() {
-  if [ -n "$HOST_ALIAS" ]; then
-    ssh "$HOST_ALIAS" "$@"
-  else
-    ssh -p 2222 "root@$IP" "$@"
-  fi
-}
-
-# Nix files to sync for config updates (relative to project root)
-NIX_FILES=(
-  flake.nix
-  flake.lock
-  modules/
-  home-manager/
-  secrets/secrets.yaml
-  .sops.yaml
-)
 
 usage() {
   echo "Usage:"
@@ -98,14 +77,6 @@ if [ "$SYSTEM" != "x86" ] && [ "$SYSTEM" != "arm" ]; then
   exit 1
 fi
 
-if [ "$SYSTEM" = "arm" ]; then
-  NIX_SYSTEM="aarch64-linux"
-  FLAKE_HOST="vps-arm"
-else
-  NIX_SYSTEM="x86_64-linux"
-  FLAKE_HOST="vps-x86"
-fi
-
 if [ -n "$HOST_ALIAS" ] && [ -n "$IP" ]; then
   echo "Error: Use either --host or --ip, not both."
   usage
@@ -118,35 +89,39 @@ if [ -z "$HOST_ALIAS" ] && [ -z "$IP" ]; then
   exit 1
 fi
 
+# Determine target label for messages
 if [ -n "$HOST_ALIAS" ]; then
-  SSH_TARGET="$HOST_ALIAS"
   TARGET_LABEL="$HOST_ALIAS"
-  RSYNC_SSH="ssh"
 else
-  SSH_TARGET="root@$IP"
   TARGET_LABEL="$IP"
-  RSYNC_SSH="ssh -p 2222"
 fi
 
-echo "==> Pushing config update to $TARGET_LABEL..."
-echo "    Target architecture: $SYSTEM ($NIX_SYSTEM), flake host: $FLAKE_HOST."
+echo "==> Updating flake inputs..."
 echo ""
 
-# 1. rsync the Nix files to the server
-#    --delete removes files in /etc/nixos/ that no longer exist locally
-#    -R (--relative) preserves directory structure (e.g. modules/ stays as modules/)
-echo "--- Syncing Nix files to $SSH_TARGET:/etc/nixos/ ..."
+# Run nix flake update in the project directory
 cd "$SCRIPT_DIR"
-rsync -avzRi --delete \
-  -e "$RSYNC_SSH" \
-  "${NIX_FILES[@]}" \
-  "$SSH_TARGET:/etc/nixos/"
+if ! nix flake update; then
+  echo ""
+  echo "Error: nix flake update failed."
+  exit 1
+fi
 
 echo ""
+echo "==> Flake inputs updated successfully."
+echo "==> Now syncing to $TARGET_LABEL..."
+echo ""
 
-# 2. Run nixos-rebuild on the server
-echo "--- Running nixos-rebuild switch on $SSH_TARGET ..."
-remote_ssh "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
+# Build sync.sh arguments
+SYNC_ARGS=("--system" "$SYSTEM")
+if [ -n "$HOST_ALIAS" ]; then
+  SYNC_ARGS+=("--host" "$HOST_ALIAS")
+else
+  SYNC_ARGS+=("--ip" "$IP")
+fi
+
+# Call sync.sh to push changes and rebuild
+"$SCRIPT_DIR/sync.sh" "${SYNC_ARGS[@]}"
 
 echo ""
-echo "==> Config update complete!"
+echo "==> Update complete!"

@@ -20,11 +20,15 @@ No local Nix required. First install uses Docker; config updates use rsync + SSH
 ./bootstrap.sh --ip 123.123.123.123 --system arm --ssh-key ~/.ssh/ssh_key
 
 # Push config updates to existing server (rsync + nixos-rebuild, uses SSH config)
-./update.sh --host host-name --system x86
-./update.sh --host host-name --system arm
+./sync.sh --host host-name --system x86
+./sync.sh --host host-name --system arm
 
 # Push config updates using direct IP (assumes root@IP on port 2222)
-./update.sh --ip 123.123.123.123 --system x86
+./sync.sh --ip 123.123.123.123 --system x86
+./sync.sh --ip 123.123.123.123 --system arm
+
+# Update flake inputs and sync to server (nix flake update + sync)
+./update.sh --host host-name --system x86
 ./update.sh --ip 123.123.123.123 --system arm
 ```
 
@@ -41,6 +45,23 @@ Host host-name
     IdentityFile ~/.ssh/ssh_key
 ```
 
+## Rollback & Recovery
+
+If an update breaks the system, use `rollback.sh` to revert to a working generation:
+
+```bash
+# List available versions
+./rollback.sh --host host-name --list
+
+# Roll back to previous version
+./rollback.sh --host host-name --previous
+
+# Roll back to specific version
+./rollback.sh --host host-name --version 285
+```
+
+Push a fixed config with `./sync.sh` when ready.
+
 ## Architecture
 
 **Flake outputs**:
@@ -51,7 +72,7 @@ Host host-name
 - `flake.nix` — Pins dependencies: nixpkgs (unstable), disko, home-manager, nix-openclaw, sops-nix. All inputs follow nixpkgs for version coherence.
 - `modules/system.nix` — System identity (hostname, timezone, locale), bootloader (GRUB for Hetzner BIOS boot), user accounts (`root` + `openclaw`), Home Manager integration. SSH keys loaded from sops secret.
 - `modules/disk.nix` — Disko partition layout for `/dev/sda`: BIOS boot (1MB) + ESP (512MB at `/boot`) + root (ext4, remaining space).
-- `modules/security.nix` — SSH on port 2222 (key-only, no passwords), firewall (only 2222+443 open), fail2ban with SSH jail, daily auto-upgrades with reboot.
+- `modules/security.nix` — SSH on port 2222 (key-only, no passwords), firewall (only 2222+443 open), fail2ban with SSH jail. Auto-upgrades disabled for full manual control.
 - `modules/sops.nix` — sops-nix secret management. Standalone age key at `/var/lib/sops-nix/key.txt`, declares `openclaw-gateway-token`, `ssh-public-key-root`, and `ssh-public-key-openclaw` secrets, decrypted to `/run/secrets/` at activation time.
 - `home-manager/openclaw.nix` — OpenClaw Home Manager module for the `openclaw` user. Gateway in local mode (localhost-only), token auth from `/run/secrets/openclaw-gateway-token`, default instance auto-starts.
 

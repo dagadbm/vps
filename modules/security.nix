@@ -55,13 +55,9 @@
   };
 
   # ── Automatic upgrades ──────────────────────────────────────────
-  # Pulls the latest NixOS channel and rebuilds daily.
-  # This keeps security patches current without manual intervention.
-  # `allowReboot = true` means NixOS may reboot automatically if needed
-  # (for example, after some kernel/system updates).
+  # Disabled: User maintains full manual control over updates.
+  # All updates flow through: update.sh → nix flake update → sync.sh
   system.autoUpgrade = {
-    enable = true;
-    allowReboot = true;
-    dates = "daily";
+    enable = false;
   };
 }

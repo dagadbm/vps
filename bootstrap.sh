@@ -341,9 +341,9 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
-# ── Run update.sh to ensure full config is applied ───────────
-echo "--- Running update.sh to ensure all Nix config is fully applied..."
-"$SCRIPT_DIR/update.sh" $UPDATE_ARGS
+# ── Run sync.sh to ensure full config is applied ───────────
+echo "--- Running sync.sh to ensure all Nix config is fully applied..."
+"$SCRIPT_DIR/sync.sh" $UPDATE_ARGS
 
 # ── Optimise the Nix store ───────────────────────────────────
 echo "--- Running nix-store --optimise on server..."
