@@ -16,11 +16,23 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ── Helper: run a command on the remote server ───────────────
+# Uses HOST_ALIAS (via SSH config) or root@IP on port 2222.
+# Usage: remote_ssh [ssh-opts...] <command>
+remote_ssh() {
+  if [ -n "$HOST_ALIAS" ]; then
+    ssh "$HOST_ALIAS" "$@"
+  else
+    ssh -p 2222 "root@$IP" "$@"
+  fi
+}
+
 # Nix files to sync for config updates (relative to project root)
 NIX_FILES=(
   flake.nix
   flake.lock
   modules/
+  home-manager/
 )
 
 usage() {
@@ -105,15 +117,13 @@ if [ -z "$HOST_ALIAS" ] && [ -z "$IP" ]; then
 fi
 
 if [ -n "$HOST_ALIAS" ]; then
-  TARGET="$HOST_ALIAS"
+  SSH_TARGET="$HOST_ALIAS"
   TARGET_LABEL="$HOST_ALIAS"
   RSYNC_SSH="ssh"
-  SSH_OPTS=()
 else
-  TARGET="root@$IP"
+  SSH_TARGET="root@$IP"
   TARGET_LABEL="$IP"
   RSYNC_SSH="ssh -p 2222"
-  SSH_OPTS=(-p 2222)
 fi
 
 echo "==> Pushing config update to $TARGET_LABEL..."
@@ -123,18 +133,18 @@ echo ""
 # 1. rsync the Nix files to the server
 #    --delete removes files in /etc/nixos/ that no longer exist locally
 #    -R (--relative) preserves directory structure (e.g. modules/ stays as modules/)
-echo "--- Syncing Nix files to $TARGET:/etc/nixos/ ..."
+echo "--- Syncing Nix files to $SSH_TARGET:/etc/nixos/ ..."
 cd "$SCRIPT_DIR"
 rsync -avzRi --delete \
   -e "$RSYNC_SSH" \
   "${NIX_FILES[@]}" \
-  "$TARGET:/etc/nixos/"
+  "$SSH_TARGET:/etc/nixos/"
 
 echo ""
 
 # 2. Run nixos-rebuild on the server
-echo "--- Running nixos-rebuild switch on $TARGET ..."
-ssh ${SSH_OPTS[@]+"${SSH_OPTS[@]}"} "$TARGET" "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
+echo "--- Running nixos-rebuild switch on $SSH_TARGET ..."
+remote_ssh "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
 
 echo ""
 echo "==> Config update complete!"

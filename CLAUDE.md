@@ -55,10 +55,10 @@ scp -P 2222 secrets/gateway-token openclaw@host-name:~/secrets/
 
 **Module structure**:
 - `flake.nix` — Pins dependencies: nixpkgs (unstable), disko, home-manager, nix-openclaw. All inputs follow nixpkgs for version coherence.
-- `modules/system.nix` — System identity (hostname, timezone, locale), bootloader (GRUB for Hetzner BIOS boot), user accounts (`root` + `openclaw`), Home Manager integration. Imports both modules below.
+- `modules/system.nix` — System identity (hostname, timezone, locale), bootloader (GRUB for Hetzner BIOS boot), user accounts (`root` + `openclaw`), Home Manager integration. Imports security module below.
 - `modules/disk.nix` — Disko partition layout for `/dev/sda`: BIOS boot (1MB) + ESP (512MB at `/boot`) + root (ext4, remaining space).
 - `modules/security.nix` — SSH on port 2222 (key-only, no passwords), firewall (only 2222+443 open), fail2ban with SSH jail, daily auto-upgrades with reboot.
-- `modules/openclaw.nix` — OpenClaw via Home Manager for the `openclaw` user. Gateway in local mode (localhost-only), token auth from `/home/openclaw/secrets/gateway-token`, default instance auto-starts.
+- `home-manager/openclaw.nix` — OpenClaw Home Manager module for the `openclaw` user. Gateway in local mode (localhost-only), token auth from `/home/openclaw/secrets/gateway-token`, default instance auto-starts.
 
 **Key relationships**:
 - `nix-openclaw` is passed to all modules via `specialArgs` and to Home Manager via `extraSpecialArgs`

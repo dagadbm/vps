@@ -14,7 +14,6 @@
     # for both x86_64 and aarch64 Hetzner Cloud VMs
     (modulesPath + "/profiles/qemu-guest.nix")
     ./security.nix
-    ./openclaw.nix
   ];
 
   # ── System identity ──────────────────────────────────────────────
@@ -64,6 +63,7 @@
   nix.settings = {
     max-jobs = 1;
     cores = 1;
+    auto-optimise-store = true;
   };
 
   # ── Packages ─────────────────────────────────────────────────────
@@ -108,6 +108,7 @@
     users.openclaw = { pkgs, ... }: {
       imports = [
         nix-openclaw.homeManagerModules.openclaw
+        ../home-manager/openclaw.nix
       ];
 
       # Home Manager requires this to be set — must match the NixOS release

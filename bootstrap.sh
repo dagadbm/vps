@@ -17,6 +17,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ── Helper: run a command on the remote server ───────────────
+# Uses HOST_ALIAS (via SSH config) or root@IP on port 2222.
+# Extra SSH options can be passed before the command.
+# Usage: remote_ssh [ssh-opts...] <command>
+remote_ssh() {
+  if [ -n "$HOST_ALIAS" ]; then
+    ssh "$HOST_ALIAS" "$@"
+  else
+    ssh -p 2222 "root@$IP" "$@"
+  fi
+}
+
 usage() {
   echo "Usage:"
   echo "  ./bootstrap.sh --host <HOST> --system <x86|arm>"
@@ -204,25 +216,21 @@ echo "--- SSH connection info"
 if [ -n "$HOST_ALIAS" ]; then
   echo "    Host (alias): $HOST_ALIAS"
   echo "    Host (resolved): $IP"
+  UPDATE_ARGS="--host $HOST_ALIAS --system $SYSTEM"
+  POST_INSTALL_SSH="ssh $HOST_ALIAS"
+  POST_INSTALL_OPENCLAW_SSH="ssh $HOST_ALIAS -l openclaw"
+  POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$HOST_ALIAS:~/secrets/"
 else
   echo "    Host: $IP"
+  UPDATE_ARGS="--ip $IP --system $SYSTEM"
+  POST_INSTALL_SSH="ssh -p 2222 root@$IP"
+  POST_INSTALL_OPENCLAW_SSH="ssh -p 2222 openclaw@$IP"
+  POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$IP:~/secrets/"
 fi
 echo "    SSH key: $SSH_KEY"
 echo "    Initial port: $SSH_PORT"
 echo "    Post-kexec port: $POST_KEXEC_SSH_PORT"
 echo ""
-
-if [ -n "$HOST_ALIAS" ]; then
-  POST_INSTALL_SSH="ssh $HOST_ALIAS"
-  POST_INSTALL_OPENCLAW_SSH="ssh $HOST_ALIAS -l openclaw"
-  POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$HOST_ALIAS:~/secrets/"
-  POST_INSTALL_UPDATE="./update.sh --host $HOST_ALIAS --system $SYSTEM"
-else
-  POST_INSTALL_SSH="ssh -p 2222 root@$IP"
-  POST_INSTALL_OPENCLAW_SSH="ssh -p 2222 openclaw@$IP"
-  POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$IP:~/secrets/"
-  POST_INSTALL_UPDATE="./update.sh --ip $IP --system $SYSTEM"
-fi
 
 # ── Check Docker is available ──────────────────────────────────
 if ! command -v docker &>/dev/null; then
@@ -297,10 +305,38 @@ docker run --rm -it \
 echo ""
 echo "==> NixOS installation complete!"
 echo ""
+
+# ── Wait for server to come back on port 2222 ────────────────
+echo "--- Waiting for server to reboot and become reachable on port 2222..."
+
+for i in $(seq 1 60); do
+  if remote_ssh -o BatchMode=yes -o ConnectTimeout=5 \
+    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    true 2>/dev/null; then
+    echo "    Server is up!"
+    break
+  fi
+  if [ "$i" = "60" ]; then
+    echo "Error: Server did not become reachable after 5 minutes."
+    exit 1
+  fi
+  sleep 5
+done
+
+# ── Run update.sh to ensure full config is applied ───────────
+echo "--- Running update.sh to ensure all Nix config is fully applied..."
+"$SCRIPT_DIR/update.sh" $UPDATE_ARGS
+
+# ── Optimise the Nix store ───────────────────────────────────
+echo "--- Running nix-store --optimise on server..."
+remote_ssh "nix-store --optimise"
+
+echo ""
+echo "==> Bootstrap fully complete!"
+echo ""
 echo "Next steps:"
-echo "  1. Wait ~30 seconds for the server to reboot"
-echo "  2. SSH in:  $POST_INSTALL_SSH"
-echo "  3. Set up OpenClaw secrets:"
+echo "  1. SSH in: $POST_INSTALL_SSH"
+echo "  2. Set up OpenClaw secrets:"
 echo "     $POST_INSTALL_OPENCLAW_SSH 'mkdir -p ~/secrets'"
 echo "     $POST_INSTALL_OPENCLAW_SCP"
-echo "  4. To update config later:  $POST_INSTALL_UPDATE"
+echo "  3. To update config later:  ./update.sh $UPDATE_ARGS"
