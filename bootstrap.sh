@@ -4,6 +4,7 @@
 #
 # Wipes the disk and installs NixOS via Docker + nixos-anywhere.
 # Connects on port 22 (Hetzner default) since NixOS isn't installed yet.
+# Provisions the sops age key via --extra-files for automatic secret decryption.
 #
 # Usage:
 #   ./bootstrap.sh --host <HOST> --system <x86|arm>
@@ -182,6 +183,13 @@ if [ -z "$SSH_KEY" ] || [ ! -f "$SSH_KEY" ]; then
   exit 1
 fi
 
+# ── Validate age key for sops-nix ─────────────────────────────
+if [ ! -f "$SCRIPT_DIR/secrets/age-key.txt" ]; then
+  echo "Error: Age key not found at secrets/age-key.txt"
+  echo "Generate one with: age-keygen -o secrets/age-key.txt"
+  exit 1
+fi
+
 SSH_PORT="22"
 POST_KEXEC_SSH_PORT="22"
 if [ -n "$HOST_ALIAS" ]; then
@@ -218,14 +226,10 @@ if [ -n "$HOST_ALIAS" ]; then
   echo "    Host (resolved): $IP"
   UPDATE_ARGS="--host $HOST_ALIAS --system $SYSTEM"
   POST_INSTALL_SSH="ssh $HOST_ALIAS"
-  POST_INSTALL_OPENCLAW_SSH="ssh $HOST_ALIAS -l openclaw"
-  POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$HOST_ALIAS:~/secrets/"
 else
   echo "    Host: $IP"
   UPDATE_ARGS="--ip $IP --system $SYSTEM"
   POST_INSTALL_SSH="ssh -p 2222 root@$IP"
-  POST_INSTALL_OPENCLAW_SSH="ssh -p 2222 openclaw@$IP"
-  POST_INSTALL_OPENCLAW_SCP="scp -P 2222 secrets/gateway-token openclaw@$IP:~/secrets/"
 fi
 echo "    SSH key: $SSH_KEY"
 echo "    Initial port: $SSH_PORT"
@@ -271,11 +275,20 @@ echo "    Using Docker to run nixos-anywhere (no local Nix needed)."
 echo "    Target architecture: $SYSTEM ($NIX_SYSTEM), flake host: $FLAKE_HOST."
 echo ""
 
+# ── Prepare extra-files for sops age key ──────────────────────
+# nixos-anywhere's --extra-files copies these into the new system's filesystem.
+# This places the age private key where sops-nix expects it.
+EXTRA_FILES_DIR="$(mktemp -d)"
+mkdir -p "$EXTRA_FILES_DIR/var/lib/sops-nix"
+cp "$SCRIPT_DIR/secrets/age-key.txt" "$EXTRA_FILES_DIR/var/lib/sops-nix/key.txt"
+chmod 600 "$EXTRA_FILES_DIR/var/lib/sops-nix/key.txt"
+
 # Run nixos-anywhere inside a nixos/nix Docker container.
 #
 # Mounts:
 #   - SSH key as /root/.ssh/id_ed25519 (read-only) so nixos-anywhere can reach the server
 #   - Project directory as /work so the flake is available inside the container
+#   - Extra-files directory for sops age key provisioning
 #
 # The container:
 #   1. Enables flakes in the ephemeral Nix config
@@ -289,6 +302,7 @@ docker run --rm -it \
   -v vps-nix-store:/nix \
   -v "$SSH_KEY:/root/.ssh/id_ed25519:ro" \
   -v "$SCRIPT_DIR:/work" \
+  -v "$EXTRA_FILES_DIR:/extra-files:ro" \
   nixos/nix bash -c "
     mkdir -p /root/.config/nix
     echo 'experimental-features = nix-command flakes' > /root/.config/nix/nix.conf
@@ -298,9 +312,13 @@ docker run --rm -it \
       --target-host root@$IP \
       --ssh-port $SSH_PORT \
       --post-kexec-ssh-port $POST_KEXEC_SSH_PORT \
+      --extra-files /extra-files \
       --ssh-option StrictHostKeyChecking=no \
       --ssh-option UserKnownHostsFile=/dev/null
   "
+
+# Clean up temporary extra-files directory
+rm -rf "$EXTRA_FILES_DIR"
 
 echo ""
 echo "==> NixOS installation complete!"
@@ -336,7 +354,4 @@ echo "==> Bootstrap fully complete!"
 echo ""
 echo "Next steps:"
 echo "  1. SSH in: $POST_INSTALL_SSH"
-echo "  2. Set up OpenClaw secrets:"
-echo "     $POST_INSTALL_OPENCLAW_SSH 'mkdir -p ~/secrets'"
-echo "     $POST_INSTALL_OPENCLAW_SCP"
-echo "  3. To update config later:  ./update.sh $UPDATE_ARGS"
+echo "  2. To update config later:  ./update.sh $UPDATE_ARGS"

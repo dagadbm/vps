@@ -5,7 +5,6 @@
 # - User accounts
 # - Bootloader
 # - Home Manager integration for per-user config
-# - Imports for security hardening and OpenClaw service
 { config, pkgs, lib, modulesPath, nix-openclaw, ... }:
 
 {
@@ -13,7 +12,6 @@
     # QEMU/KVM guest profile — loads virtio drivers (network, disk, GPU, etc.)
     # for both x86_64 and aarch64 Hetzner Cloud VMs
     (modulesPath + "/profiles/qemu-guest.nix")
-    ./security.nix
   ];
 
   # ── System identity ──────────────────────────────────────────────
@@ -81,16 +79,16 @@
   #
   # No separate personal user account; root handles all admin tasks.
 
-  users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBtAjf6zeT7Mg7w+zuC9yIN1xEvGZUPdKWwoo29EZEFx dagadbm@gmail.com"
+  users.users.root.openssh.authorizedKeys.keyFiles = [
+    config.sops.secrets."ssh-public-key".path
   ];
 
   users.users.openclaw = {
     isNormalUser = true; # Required by Home Manager
     description = "OpenClaw service user";
     # No extraGroups — this user has no sudo access
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBtAjf6zeT7Mg7w+zuC9yIN1xEvGZUPdKWwoo29EZEFx dagadbm@gmail.com"
+    openssh.authorizedKeys.keyFiles = [
+      config.sops.secrets."ssh-public-key".path
     ];
   };
 

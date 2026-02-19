@@ -33,6 +33,8 @@ NIX_FILES=(
   flake.lock
   modules/
   home-manager/
+  secrets/secrets.yaml
+  .sops.yaml
 )
 
 usage() {

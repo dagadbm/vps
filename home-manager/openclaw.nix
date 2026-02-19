@@ -1,16 +1,8 @@
 # OpenClaw Home Manager configuration for the `openclaw` user
 #
-# This module sets the OpenClaw-specific options:
 # - Gateway mode: local (binds to localhost)
-# - Authentication: token loaded from a file on disk
+# - Authentication: token loaded from sops-managed secret
 # - Default instance enabled
-#
-# After deployment, you must manually create the token file:
-#   ssh -p 2222 openclaw@<IP>
-#   mkdir -p ~/secrets
-#   echo "your-api-key" > ~/secrets/gateway-token
-#
-# If this file is missing, OpenClaw auth will fail at runtime.
 { config, lib, pkgs, ... }:
 
 {
@@ -22,10 +14,8 @@
         mode = "local";
 
         auth = {
-          # Path to the API token file on the server
-          # This file is NOT managed by Nix — it's manually placed
-          # and should be readable by the `openclaw` user only.
-          tokenFile = "/home/openclaw/secrets/gateway-token";
+          # sops-nix decrypts the token to /run/secrets/gateway-token
+          tokenFile = "/run/secrets/gateway-token";
         };
       };
     };

@@ -25,12 +25,18 @@
     nix-openclaw = {
       url = "github:openclaw/nix-openclaw";
     };
+
+    # Encrypted secrets management — decrypts at NixOS activation time
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   # `outputs = { ... }: { ... }` is a function:
   # - left side: named inputs passed in
   # - right side: attributes exported by this flake
-  outputs = { self, nixpkgs, disko, home-manager, nix-openclaw, ... }:
+  outputs = { self, nixpkgs, disko, home-manager, nix-openclaw, sops-nix, ... }:
     let
       mkVps = system: nixpkgs.lib.nixosSystem {
         inherit system;
@@ -39,15 +45,16 @@
         specialArgs = { inherit nix-openclaw; };
 
         modules = [
-          # Declarative disk partitioning
+          # Upstream modules
           disko.nixosModules.disko
-          ./modules/disk.nix
-
-          # Home Manager as a NixOS module (not standalone)
           home-manager.nixosModules.home-manager
+          sops-nix.nixosModules.sops
 
-          # Main system configuration
+          # System modules (flat — no sibling imports between modules)
+          ./modules/disk.nix
           ./modules/system.nix
+          ./modules/security.nix
+          ./modules/sops.nix
         ];
       };
     in {

@@ -6,6 +6,7 @@ This repository defines a full NixOS server for running OpenClaw on Hetzner Clou
 - OS and disk layout
 - SSH/firewall hardening
 - OpenClaw service configuration
+- Encrypted secrets (sops-nix with age)
 
 You can wipe and rebuild the server from this repo.
 
@@ -32,6 +33,7 @@ Hetzner server type mapping:
 
 - Docker Desktop (for `bootstrap.sh`)
 - `rsync` and `ssh` (default on macOS)
+- `age` and `sops` (`brew install age sops`)
 - A reachable VPS IP
 - SSH private key access to the server
 
@@ -44,6 +46,42 @@ Host host-name
     Port 2222
     IdentityFile ~/.ssh/ssh_key
 ```
+
+## Secrets management
+
+Secrets are encrypted in git via sops-nix. The age private key (`secrets/age-key.txt`) stays local and gitignored.
+
+### One-time setup
+
+```bash
+# Generate the age key pair
+age-keygen -o secrets/age-key.txt
+# Note the public key from the output (starts with "age1...")
+
+# Put the public key in .sops.yaml (replace <AGE_PUBLIC_KEY_PLACEHOLDER>)
+
+# Create and encrypt the secrets file
+SOPS_AGE_KEY_FILE=secrets/age-key.txt sops secrets/secrets.yaml
+# This opens your $EDITOR — add:
+#   gateway-token: your-actual-openclaw-token
+#   ssh-public-key: ssh-ed25519 AAAAC3... you@email.com
+```
+
+### View or edit existing secrets
+
+```bash
+SOPS_AGE_KEY_FILE=secrets/age-key.txt sops secrets/secrets.yaml
+```
+
+### Add a new secret
+
+1. Add the value to `secrets/secrets.yaml` via `sops`
+2. Declare it in `modules/sops.nix` with owner/permissions
+3. Reference its path in the consuming module
+
+### Age key backup
+
+`secrets/age-key.txt` is the **only way** to decrypt secrets. Back it up in a password manager. If lost, you must generate a new key, update `.sops.yaml`, and re-encrypt all secrets.
 
 ## First install (destroys existing server data)
 
@@ -64,6 +102,8 @@ Using direct IP:
 Notes:
 - Bootstrap connects on port `22` (fresh Hetzner default).
 - It runs `nixos-anywhere` via Docker and installs either `vps-x86` or `vps-arm`.
+- The sops age key is automatically provisioned to the server during bootstrap.
+- Secrets are decrypted automatically — no manual steps needed.
 
 ## Update an existing server
 
@@ -83,27 +123,13 @@ Using direct IP:
 
 Notes:
 - Update mode uses SSH port `2222`.
-- It rsyncs Nix files to `/etc/nixos` and runs `nixos-rebuild switch`.
-
-## After first install: add OpenClaw token
-
-```bash
-ssh host-name -l openclaw 'mkdir -p ~/secrets'
-scp -P 2222 secrets/gateway-token openclaw@host-name:~/secrets/
-```
-
-If you are using direct IP instead of host alias:
-
-```bash
-ssh -p 2222 openclaw@123.123.123.123 'mkdir -p ~/secrets'
-scp -P 2222 secrets/gateway-token openclaw@123.123.123.123:~/secrets/
-```
+- It rsyncs Nix files (including encrypted secrets) to `/etc/nixos` and runs `nixos-rebuild switch`.
 
 ## Safety checklist
 
 - `bootstrap.sh` is destructive. Double-check target before running.
 - Keep `system.stateVersion` and Home Manager state version stable after deployment.
-- Keep secrets out of git (token file is manually managed).
+- Back up `secrets/age-key.txt` — it's the only way to decrypt secrets.
 
 ## Nix beginner quickstart
 
@@ -118,6 +144,7 @@ This repo is the server's source code.
 - `flake.nix`: project entry point (what can be built/deployed)
 - `modules/system.nix`: main system settings
 - `modules/security.nix`: SSH, firewall, fail2ban, auto updates
+- `modules/sops.nix`: encrypted secrets (sops-nix with age)
 - `home-manager/openclaw.nix`: OpenClaw options
 - `modules/disk.nix`: disk partition layout for first install
 
@@ -137,6 +164,7 @@ This repo is the server's source code.
 - Hostname/timezone/locale: `modules/system.nix`
 - Open/close ports: `modules/security.nix`
 - OpenClaw config: `home-manager/openclaw.nix`
+- Secrets: `SOPS_AGE_KEY_FILE=secrets/age-key.txt sops secrets/secrets.yaml` + declare in `modules/sops.nix`
 - Disk layout: `modules/disk.nix` (destructive during bootstrap)
 
 ### Syntax cheat sheet

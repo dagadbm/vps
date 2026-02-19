@@ -1,7 +1,5 @@
-# Secrets — API keys, tokens, credentials
-# These are manually copied to the server after deploy
-secrets/*
-!secrets/.gitkeep
+# sops age private key — NEVER commit this
+secrets/age-key.txt
 
 # Nix build output symlink
 result

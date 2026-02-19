@@ -1,0 +1,7 @@
+keys:
+  - &admin <AGE_PUBLIC_KEY_PLACEHOLDER>
+creation_rules:
+  - path_regex: secrets/secrets\.yaml$
+    key_groups:
+      - age:
+        - *admin
