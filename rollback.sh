@@ -146,9 +146,21 @@ case "$ACTION" in
   previous)
     echo "==> Rolling back $TARGET_LABEL to previous generation..."
     echo ""
-    remote_ssh "nixos-rebuild switch --rollback"
+
+    # Get the previous generation number (the one marked as False/not current)
+    PREV_GEN=$(remote_ssh "nixos-rebuild list-generations | grep -v 'True' | tail -1 | awk '{print \$1}'")
+
+    if [ -z "$PREV_GEN" ]; then
+      echo "Error: Could not determine previous generation."
+      exit 1
+    fi
+
+    # Switch to previous generation
+    remote_ssh "nix-env -p /nix/var/nix/profiles/system --set /nix/var/nix/profiles/system-$PREV_GEN-link"
+    remote_ssh "/nix/var/nix/profiles/system/bin/switch-to-configuration switch"
+
     echo ""
-    echo "✅ Rolled back to previous generation."
+    echo "✅ Rolled back to generation $PREV_GEN."
     echo "    Push a fixed config with './sync.sh' when ready."
     ;;
 
