@@ -79,17 +79,10 @@
   #
   # No separate personal user account; root handles all admin tasks.
 
-  users.users.root.openssh.authorizedKeys.keyFiles = [
-    config.sops.secrets."ssh-public-key".path
-  ];
-
   users.users.openclaw = {
     isNormalUser = true; # Required by Home Manager
     description = "OpenClaw service user";
     # No extraGroups — this user has no sudo access
-    openssh.authorizedKeys.keyFiles = [
-      config.sops.secrets."ssh-public-key".path
-    ];
   };
 
   # ── Home Manager ─────────────────────────────────────────────────

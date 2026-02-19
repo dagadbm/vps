@@ -63,8 +63,9 @@ age-keygen -o secrets/age-key.txt
 # Create and encrypt the secrets file
 SOPS_AGE_KEY_FILE=secrets/age-key.txt sops secrets/secrets.yaml
 # This opens your $EDITOR — add:
-#   gateway-token: your-actual-openclaw-token
-#   ssh-public-key: ssh-ed25519 AAAAC3... you@email.com
+#   openclaw-gateway-token: your-actual-openclaw-token
+#   ssh-public-key-root: ssh-ed25519 AAAAC3... root
+#   ssh-public-key-openclaw: ssh-ed25519 AAAAC3... openclaw
 ```
 
 ### View or edit existing secrets

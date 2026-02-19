@@ -112,7 +112,7 @@ GRUB is used instead of systemd-boot because Hetzner Cloud VMs require it.
 Base NixOS configuration:
 - Sets hostname, timezone, locale
 - Creates user accounts (root for admin, openclaw for the service)
-- SSH authorized keys loaded from sops secret (`ssh-public-key`)
+- SSH authorized keys loaded from sops secrets (`ssh-public-key-root`, `ssh-public-key-openclaw`)
 - Imports Home Manager as a NixOS module
 - Enables GRUB bootloader
 - Allows unfree packages if needed
@@ -141,15 +141,16 @@ Uses a standalone age key (not derived from SSH host keys) so VPS instances are 
 **Declared secrets**:
 | Secret | Owner | Notes |
 |--------|-------|-------|
-| `gateway-token` | `openclaw` | OpenClaw API token, mode 0400 |
-| `ssh-public-key` | root | `neededForUsers = true` — decrypted before user creation |
+| `openclaw-gateway-token` | `openclaw` | OpenClaw API token, mode 0400 |
+| `ssh-public-key-root` | root | SSH public key, decrypted before activation installs authorized_keys |
+| `ssh-public-key-openclaw` | openclaw | SSH public key, decrypted before activation installs authorized_keys |
 
 ### home-manager/openclaw.nix — OpenClaw Service
 
 Uses the official `nix-openclaw` Home Manager module:
 - Gateway runs as systemd user service under the `openclaw` user
 - Binds to localhost (not exposed to internet directly)
-- API token loaded from `/run/secrets/gateway-token` (sops-managed)
+- API token loaded from `/run/secrets/openclaw-gateway-token` (sops-managed)
 - State stored in `/home/openclaw/.openclaw/`
 
 ### bootstrap.sh + update.sh — Deploy Workflow
@@ -177,7 +178,7 @@ No local Nix required.
 ### secrets/ — Encrypted Secrets
 
 Secrets are managed via sops-nix with age encryption:
-- `secrets/secrets.yaml` — encrypted, committed to git. Contains `gateway-token` and `ssh-public-key`.
+- `secrets/secrets.yaml` — encrypted, committed to git. Contains `openclaw-gateway-token`, `ssh-public-key-root`, and `ssh-public-key-openclaw`.
 - `secrets/age-key.txt` — age private key, gitignored. The only key that can decrypt secrets.
 - `.sops.yaml` — sops config at repo root, references the age public key.
 

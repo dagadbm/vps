@@ -14,8 +14,8 @@
         mode = "local";
 
         auth = {
-          # sops-nix decrypts the token to /run/secrets/gateway-token
-          tokenFile = "/run/secrets/gateway-token";
+          # sops-nix decrypts the token to /run/secrets/openclaw-gateway-token
+          tokenFile = "/run/secrets/openclaw-gateway-token";
         };
       };
     };

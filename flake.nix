@@ -55,6 +55,7 @@
           ./modules/system.nix
           ./modules/security.nix
           ./modules/sops.nix
+          ./modules/ssh-keys.nix
         ];
       };
     in {

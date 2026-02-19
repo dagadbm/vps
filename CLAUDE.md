@@ -52,8 +52,8 @@ Host host-name
 - `modules/system.nix` — System identity (hostname, timezone, locale), bootloader (GRUB for Hetzner BIOS boot), user accounts (`root` + `openclaw`), Home Manager integration. SSH keys loaded from sops secret.
 - `modules/disk.nix` — Disko partition layout for `/dev/sda`: BIOS boot (1MB) + ESP (512MB at `/boot`) + root (ext4, remaining space).
 - `modules/security.nix` — SSH on port 2222 (key-only, no passwords), firewall (only 2222+443 open), fail2ban with SSH jail, daily auto-upgrades with reboot.
-- `modules/sops.nix` — sops-nix secret management. Standalone age key at `/var/lib/sops-nix/key.txt`, declares `gateway-token` and `ssh-public-key` secrets, decrypted to `/run/secrets/` at activation time.
-- `home-manager/openclaw.nix` — OpenClaw Home Manager module for the `openclaw` user. Gateway in local mode (localhost-only), token auth from `/run/secrets/gateway-token`, default instance auto-starts.
+- `modules/sops.nix` — sops-nix secret management. Standalone age key at `/var/lib/sops-nix/key.txt`, declares `openclaw-gateway-token`, `ssh-public-key-root`, and `ssh-public-key-openclaw` secrets, decrypted to `/run/secrets/` at activation time.
+- `home-manager/openclaw.nix` — OpenClaw Home Manager module for the `openclaw` user. Gateway in local mode (localhost-only), token auth from `/run/secrets/openclaw-gateway-token`, default instance auto-starts.
 
 **Key relationships**:
 - `nix-openclaw` is passed to all modules via `specialArgs` and to Home Manager via `extraSpecialArgs`
