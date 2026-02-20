@@ -17,18 +17,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# ── Helper: run a command on the remote server ───────────────
-# Uses HOST_ALIAS (via SSH config) or root@IP on port 2222.
-# Extra SSH options can be passed before the command.
-# Usage: remote_ssh [ssh-opts...] <command>
-remote_ssh() {
-  if [ -n "$HOST_ALIAS" ]; then
-    ssh "$HOST_ALIAS" "$@"
-  else
-    ssh -p 2222 "root@$IP" "$@"
-  fi
-}
+source "$SCRIPT_DIR/lib/utils.sh"
 
 usage() {
   echo "Usage:"
@@ -86,37 +75,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$SYSTEM" ]; then
-  echo "Error: --system is required (x86 or arm)."
-  usage
-  exit 1
-fi
-
-if [ "$SYSTEM" != "x86" ] && [ "$SYSTEM" != "arm" ]; then
-  echo "Error: --system must be one of: x86, arm."
-  usage
-  exit 1
-fi
-
-if [ "$SYSTEM" = "arm" ]; then
-  NIX_SYSTEM="aarch64-linux"
-  FLAKE_HOST="vps-arm"
-else
-  NIX_SYSTEM="x86_64-linux"
-  FLAKE_HOST="vps-x86"
-fi
-
-if [ -n "$HOST_ALIAS" ] && [ -n "$IP" ]; then
-  echo "Error: Use either --host or --ip, not both."
-  usage
-  exit 1
-fi
-
-if [ -z "$HOST_ALIAS" ] && [ -z "$IP" ]; then
-  echo "Error: You must provide either --host or --ip."
-  usage
-  exit 1
-fi
+validate_system_arg "$SYSTEM" usage
+validate_connection_args "$HOST_ALIAS" "$IP" usage
+NIX_SYSTEM="$(get_nix_system "$SYSTEM")"
+FLAKE_HOST="$(get_flake_host "$SYSTEM")"
 
 if [ -n "$HOST_ALIAS" ] && [ -n "$SSH_KEY" ]; then
   echo "Error: --ssh-key can only be used with --ip."
@@ -327,8 +289,10 @@ echo ""
 # ── Wait for server to come back on port 2222 ────────────────
 echo "--- Waiting for server to reboot and become reachable on port 2222..."
 
+SSH_TARGET="$(first_valid "$HOST_ALIAS" "$(ssh_uri "$IP" 2222)")"
+
 for i in $(seq 1 60); do
-  if remote_ssh -o BatchMode=yes -o ConnectTimeout=5 \
+  if ssh_exec "$SSH_TARGET" -o BatchMode=yes -o ConnectTimeout=5 \
     -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     true 2>/dev/null; then
     echo "    Server is up!"
@@ -347,7 +311,7 @@ echo "--- Running sync.sh to ensure all Nix config is fully applied..."
 
 # ── Optimise the Nix store ───────────────────────────────────
 echo "--- Running nix-store --optimise on server..."
-remote_ssh "nix-store --optimise"
+ssh_exec "$SSH_TARGET" "nix-store --optimise"
 
 echo ""
 echo "==> Bootstrap fully complete!"

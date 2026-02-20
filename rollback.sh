@@ -18,17 +18,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# ── Helper: run a command on the remote server ───────────────
-# Uses HOST_ALIAS (via SSH config) or root@IP on port 2222.
-# Usage: remote_ssh <command>
-remote_ssh() {
-  if [ -n "$HOST_ALIAS" ]; then
-    ssh "$HOST_ALIAS" "$@"
-  else
-    ssh -p 2222 "root@$IP" "$@"
-  fi
-}
+source "$SCRIPT_DIR/lib/utils.sh"
 
 usage() {
   echo "Usage:"
@@ -106,17 +96,7 @@ if [ -z "$ACTION" ]; then
   exit 1
 fi
 
-if [ -n "$HOST_ALIAS" ] && [ -n "$IP" ]; then
-  echo "Error: Use either --host or --ip, not both."
-  usage
-  exit 1
-fi
-
-if [ -z "$HOST_ALIAS" ] && [ -z "$IP" ]; then
-  echo "Error: You must provide either --host or --ip."
-  usage
-  exit 1
-fi
+validate_connection_args "$HOST_ALIAS" "$IP" usage
 
 # Validate version is numeric if provided
 if [ "$ACTION" = "version" ]; then
@@ -127,19 +107,15 @@ if [ "$ACTION" = "version" ]; then
   fi
 fi
 
-# Determine target label for messages
-if [ -n "$HOST_ALIAS" ]; then
-  TARGET_LABEL="$HOST_ALIAS"
-else
-  TARGET_LABEL="$IP"
-fi
+TARGET_LABEL="$(first_valid "$HOST_ALIAS" "$IP")"
+SSH_TARGET="$(first_valid "$HOST_ALIAS" "$(ssh_uri "$IP" 2222)")"
 
 # Execute the requested action
 case "$ACTION" in
   list)
     echo "==> Listing available generations on $TARGET_LABEL..."
     echo ""
-    remote_ssh "nixos-rebuild list-generations"
+    ssh_exec "$SSH_TARGET" "nixos-rebuild list-generations"
     exit 0
     ;;
 
@@ -148,7 +124,7 @@ case "$ACTION" in
     echo ""
 
     # Get the previous generation number (the one marked as False/not current)
-    PREV_GEN=$(remote_ssh "nixos-rebuild list-generations | grep -v 'True' | tail -1 | awk '{print \$1}'")
+    PREV_GEN=$(ssh_exec "$SSH_TARGET" "nixos-rebuild list-generations | grep -v 'True' | tail -1 | awk '{print \$1}'")
 
     if [ -z "$PREV_GEN" ]; then
       echo "Error: Could not determine previous generation."
@@ -156,11 +132,11 @@ case "$ACTION" in
     fi
 
     # Switch to previous generation
-    remote_ssh "nix-env -p /nix/var/nix/profiles/system --set /nix/var/nix/profiles/system-$PREV_GEN-link"
-    remote_ssh "/nix/var/nix/profiles/system/bin/switch-to-configuration switch"
+    ssh_exec "$SSH_TARGET" "nix-env -p /nix/var/nix/profiles/system --set /nix/var/nix/profiles/system-$PREV_GEN-link"
+    ssh_exec "$SSH_TARGET" "/nix/var/nix/profiles/system/bin/switch-to-configuration switch"
 
     echo ""
-    echo "✅ Rolled back to generation $PREV_GEN."
+    echo "Rolled back to generation $PREV_GEN."
     echo "    Push a fixed config with './sync.sh' when ready."
     ;;
 
@@ -169,7 +145,7 @@ case "$ACTION" in
     echo ""
 
     # Verify generation exists
-    if ! remote_ssh "test -e /nix/var/nix/profiles/system-$VERSION-link"; then
+    if ! ssh_exec "$SSH_TARGET" "test -e /nix/var/nix/profiles/system-$VERSION-link"; then
       echo "Error: Generation $VERSION does not exist on $TARGET_LABEL."
       echo "       Run './rollback.sh --host $TARGET_LABEL --list' to see available generations."
       exit 1
@@ -178,11 +154,11 @@ case "$ACTION" in
     # Switch to specific generation using the workaround from NixOS issue
     # https://github.com/NixOS/nixpkgs/issues/82851
     # (Direct switch-to-configuration doesn't update GRUB properly without this)
-    remote_ssh "nix-env -p /nix/var/nix/profiles/system --set /nix/var/nix/profiles/system-$VERSION-link"
-    remote_ssh "/nix/var/nix/profiles/system/bin/switch-to-configuration switch"
+    ssh_exec "$SSH_TARGET" "nix-env -p /nix/var/nix/profiles/system --set /nix/var/nix/profiles/system-$VERSION-link"
+    ssh_exec "$SSH_TARGET" "/nix/var/nix/profiles/system/bin/switch-to-configuration switch"
 
     echo ""
-    echo "✅ Rolled back to generation $VERSION."
+    echo "Rolled back to generation $VERSION."
     echo "    Push a fixed config with './sync.sh' when ready."
     ;;
 esac

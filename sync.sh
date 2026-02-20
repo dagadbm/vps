@@ -15,17 +15,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# ── Helper: run a command on the remote server ───────────────
-# Uses HOST_ALIAS (via SSH config) or root@IP on port 2222.
-# Usage: remote_ssh [ssh-opts...] <command>
-remote_ssh() {
-  if [ -n "$HOST_ALIAS" ]; then
-    ssh "$HOST_ALIAS" "$@"
-  else
-    ssh -p 2222 "root@$IP" "$@"
-  fi
-}
+source "$SCRIPT_DIR/lib/utils.sh"
 
 # Nix files to sync for config updates (relative to project root)
 NIX_FILES=(
@@ -86,46 +76,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$SYSTEM" ]; then
-  echo "Error: --system is required (x86 or arm)."
-  usage
-  exit 1
-fi
-
-if [ "$SYSTEM" != "x86" ] && [ "$SYSTEM" != "arm" ]; then
-  echo "Error: --system must be one of: x86, arm."
-  usage
-  exit 1
-fi
-
-if [ "$SYSTEM" = "arm" ]; then
-  NIX_SYSTEM="aarch64-linux"
-  FLAKE_HOST="vps-arm"
-else
-  NIX_SYSTEM="x86_64-linux"
-  FLAKE_HOST="vps-x86"
-fi
-
-if [ -n "$HOST_ALIAS" ] && [ -n "$IP" ]; then
-  echo "Error: Use either --host or --ip, not both."
-  usage
-  exit 1
-fi
-
-if [ -z "$HOST_ALIAS" ] && [ -z "$IP" ]; then
-  echo "Error: You must provide either --host or --ip."
-  usage
-  exit 1
-fi
+validate_system_arg "$SYSTEM" usage
+validate_connection_args "$HOST_ALIAS" "$IP" usage
+NIX_SYSTEM="$(get_nix_system "$SYSTEM")"
+FLAKE_HOST="$(get_flake_host "$SYSTEM")"
+TARGET_LABEL="$(first_valid "$HOST_ALIAS" "$IP")"
+SSH_TARGET="$(first_valid "$HOST_ALIAS" "$(ssh_uri "$IP" 2222)")"
 
 if [ -n "$HOST_ALIAS" ]; then
-  SSH_TARGET="$HOST_ALIAS"
-  TARGET_LABEL="$HOST_ALIAS"
-  RSYNC_SSH="ssh"
+  RSYNC_TARGET="$HOST_ALIAS"
+  RSYNC_SSH="ssh -o StrictHostKeyChecking=accept-new"
 else
-  SSH_TARGET="root@$IP"
-  TARGET_LABEL="$IP"
-  RSYNC_SSH="ssh -p 2222"
+  RSYNC_TARGET="root@$IP"
+  RSYNC_SSH="ssh -p 2222 -o StrictHostKeyChecking=accept-new"
 fi
 
 echo "==> Pushing config update to $TARGET_LABEL..."
@@ -135,18 +98,18 @@ echo ""
 # 1. rsync the Nix files to the server
 #    --delete removes files in /etc/nixos/ that no longer exist locally
 #    -R (--relative) preserves directory structure (e.g. modules/ stays as modules/)
-echo "--- Syncing Nix files to $SSH_TARGET:/etc/nixos/ ..."
+echo "--- Syncing Nix files to $RSYNC_TARGET:/etc/nixos/ ..."
 cd "$SCRIPT_DIR"
 rsync -avzRi --delete \
   -e "$RSYNC_SSH" \
   "${NIX_FILES[@]}" \
-  "$SSH_TARGET:/etc/nixos/"
+  "$RSYNC_TARGET:/etc/nixos/"
 
 echo ""
 
 # 2. Run nixos-rebuild on the server
-echo "--- Running nixos-rebuild switch on $SSH_TARGET ..."
-remote_ssh "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
+echo "--- Running nixos-rebuild switch on $TARGET_LABEL ..."
+ssh_exec "$SSH_TARGET" "nixos-rebuild switch --flake /etc/nixos#$FLAKE_HOST"
 
 echo ""
 echo "==> Config update complete!"

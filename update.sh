@@ -15,6 +15,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/utils.sh"
 
 usage() {
   echo "Usage:"
@@ -65,36 +66,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$SYSTEM" ]; then
-  echo "Error: --system is required (x86 or arm)."
-  usage
-  exit 1
-fi
-
-if [ "$SYSTEM" != "x86" ] && [ "$SYSTEM" != "arm" ]; then
-  echo "Error: --system must be one of: x86, arm."
-  usage
-  exit 1
-fi
-
-if [ -n "$HOST_ALIAS" ] && [ -n "$IP" ]; then
-  echo "Error: Use either --host or --ip, not both."
-  usage
-  exit 1
-fi
-
-if [ -z "$HOST_ALIAS" ] && [ -z "$IP" ]; then
-  echo "Error: You must provide either --host or --ip."
-  usage
-  exit 1
-fi
-
-# Determine target label for messages
-if [ -n "$HOST_ALIAS" ]; then
-  TARGET_LABEL="$HOST_ALIAS"
-else
-  TARGET_LABEL="$IP"
-fi
+validate_system_arg "$SYSTEM" usage
+validate_connection_args "$HOST_ALIAS" "$IP" usage
+TARGET_LABEL="$(first_valid "$HOST_ALIAS" "$IP")"
 
 echo "==> Updating flake inputs..."
 echo ""
